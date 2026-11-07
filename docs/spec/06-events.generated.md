@@ -21,7 +21,7 @@
 |  |  | `turnId` | string | ✓ |
 | `turn.ended` | ターン終了。 | `v` | 1 | ✓ |
 |  |  | `turnId` | string | ✓ |
-|  |  | `reason` | "completed" \| "cancelled" \| "error" | ✓ |
+|  |  | `reason` | "completed" \| "cancelled" \| "error" \| "context_overflow" | ✓ |
 | `model.requested` | モデル呼び出しの直前。 | `v` | 1 | ✓ |
 |  |  | `turnId` | string | ✓ |
 |  |  | `model` | string | ✓ |

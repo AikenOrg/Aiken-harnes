@@ -24,6 +24,9 @@
     "default": "openai/gpt-4.1"
   },
   "restore": "none",
+  "context": {
+    "overflowRatio": 0.9
+  },
   "shell": {
     "mode": "whitelist",
     "allow": [

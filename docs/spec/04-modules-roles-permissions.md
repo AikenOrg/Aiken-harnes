@@ -70,7 +70,7 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 | `result-store` | 1 | 非同期ジョブの結果と復元用メタデータの保存 (`read_result` の裏側) |
 | `compactor` | 1 | 履歴の書き換え |
 | `shell` | 1 | `exec` 権限を持てる唯一のロール |
-| `ui` | 複数可 | user.message / user.cancel の発行とイベント表示 |
+| `ui` | 複数可 | user.message / user.cancel の発行とイベント表示。ユーザー操作として任意のセッションを close できる |
 
 - 1 つのモジュールが複数ロールを兼ねてよい。SQLite モジュールは `history-store` / `session-store` / `result-store` を兼ねる想定。
 - 同じ排他ロールを 2 つ以上のモジュールが要求したら**起動時にエラー**。
@@ -119,7 +119,7 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 | `history.restore` | `ctx.history.restore` | `history-store` のみ |
 | `history.rewrite` | `ctx.history.rewrite` | compactor のみ |
 | `prompt.contribute` | `ctx.prompt.contribute` | 任意 (承認制) |
-| `session.manage` | `ctx.session.*` | ui, agent 系 |
+| `session.manage` | `ctx.session.*` | ui, agent 系。`close` は ui ロールなら任意、それ以外は自分のセッションと子孫 |
 | `agent.spawn` | `ctx.agent.spawn` | 任意 |
 | `agent.message` | `ctx.agent.message` | 任意 |
 | `tool.register` | `ctx.tools.register` | ツール提供モジュール |
@@ -129,7 +129,9 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 - `ctx` は呼び出しのたびに権限を検査する。未承認なら `permission.denied` を発行し、例外を返す。
 - 履歴の権限検査はコアに一本化する。履歴モジュールは保存先であって、権限の番人ではない。
 - `ctx.history.restore` は `history.restore` 権限と `history-store` ロールの両方を必要とする。状態が `restoring` で履歴が空のセッションにだけ実行できる (D37)。
-- `ctx.agent.close` は `agent.spawn` を必要とし、自分の子孫だけを対象にする (D52)。`ctx.session.delete` は `session.manage` を必要とし、`closed` のセッションだけを削除できる。
+- `ctx.agent.close` は `agent.spawn` を必要とし、自分の子孫だけを対象にする (D52)。
+- `ctx.session.close` は `session.manage`。ui ロールはユーザー操作として任意のセッションを close できる。
+- `ctx.session.delete` は `session.manage` を必要とし、`closed` のセッションだけを削除できる。ui ロールの任意削除は D54 として提案。
 
 ### 3.2 外部資源系 (宣言と承認のみ)
 

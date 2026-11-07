@@ -13,5 +13,7 @@ export type Session = {
    * 最上位セッションの既定は config、サブエージェントの既定は true。
    */
   autoWake?: boolean;
+  /** 直近のモデル呼び出しでプロバイダーが返した usage.input。 */
+  lastInputTokens?: number;
   createdAt: number;
 };

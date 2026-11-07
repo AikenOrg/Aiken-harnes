@@ -33,7 +33,7 @@
 | D27 | プロバイダーの自動リトライ | 初版はなし。UI 判断 | 提案 |
 | D28 | 複数プロバイダーのモデル重複 | 接頭辞の重複は起動失敗。provider が 0 でも起動失敗 | 確定 |
 | D29 | 1 ターンの最大ステップ | 50 | 提案 |
-| D30 | compaction の詳細 | 最小ループが動くまで未決定。しきい値・要約方式は未定 | 未決定 |
+| D30 | compaction とコンテキスト上限 | compactor 不在時は履歴を切り捨てず `turn.ended (context_overflow)`。`usage.input` をセッションごとに記録し `compaction.decide` に渡す。要約方式・保持件数は M1 後 | 一部確定 |
 | D31 | チーム機能 | モジュール側で別途設計 | 未決定 |
 | D32 | サンドボックス | 将来。現状は宣言と承認のみ | 未決定 |
 | D33 | 外部モジュール取得 | 強制機構ができるまで禁止。将来もディレクトリ形式だけ | 確定 |
@@ -55,7 +55,9 @@
 | D49 | 通知から溢れたジョブの ID | `ほか N 件: id1, ...` (最大 20 件) を併記し、`list_jobs(status?)` を追加。範囲は自分のセッションと子孫 | 確定 |
 | D50 | 復元用のジョブメタデータ | result-store に `session_id` / `status` / `notified` を保存。状態は 4 つのまま、running は復元時に `failed (code: "interrupted")`。無い構成では通知状態は戻らない | 確定 |
 | D51 | セッション削除 | `session.delete` は `closed` のみ。自分と子孫がすべて `closed` のときだけ許可。履歴・セッション・結果を削除する。一括削除 API は作らず、繰り返し呼ぶ | 確定 |
-| D52 | `agent.close` の権限 | `agent.spawn` を必要とし、自分の子孫だけを対象にする | 提案 |
+| D52 | `agent.close` の権限 | `agent.spawn` を必要とし、自分の子孫だけを対象にする。ui ロールは `session.close` で任意のセッションを閉じられる | 確定 |
+| D53 | コンテキスト上限のしきい値 | `context.overflowRatio` を追加し、既定 0.9 とする | 提案 |
+| D54 | ui ロールの削除範囲 | ui ロールが任意の `closed` セッションを `session.delete` できるようにするか | 提案 |
 
 ## 決定の要点
 
@@ -66,18 +68,19 @@
 - **イベント**: `events.ts` の zod が正。`v:1`、ID 参照、エラーは `{code,message}`。ID は `evt_<bootId>_<seq>`。文書は生成。
 - **ツール/ジョブ**: tool.* は呼び出しがモデルに返るまで。async の tool.completed は jobId 返却時。ジョブ終端は job.* のみで、callId で相関。完了は `ctx.jobs.done/fail` でちょうど 1 回。
 - **autoWake**: 最上位は無効、サブエージェントは有効。連続自動起動に上限。
-- **サブエージェントの後始末**: `idle` は保持するが、`agent.close` と親の close による再帰クローズで増加を防ぐ。件数上限は設けない。
+- **サブエージェントの後始末**: `idle` は保持するが、`agent.close` と親の close による再帰クローズで増加を防ぐ。件数上限は設けない。ui ロールは任意のセッションを close できる。
 - **セッション削除**: `closed` のみ。一括削除 API は作らず、`session.delete` を繰り返す。
 - **summary/通知**: 200/500/2000 文字の上限。超えた分は切り詰め、通知は `ほか N 件` + ID。
 - **設定/承認**: `modules` は 1 本の配列。承認はユーザー設定ディレクトリの `approvals.json`。`tool.intercept` は重い権限として警告。
+- **コンテキスト上限**: `usage.input` を記録し、`context.overflowRatio` (既定 0.9) 超えで compaction。compactor 不在時は `turn.ended (context_overflow)` で停止し、履歴を切り捨てない。
 
 ## 次に確認したいもの
 
-1. **D52**: `agent.close` を `agent.spawn` 権限でよいか、専用権限にするか。
-2. **D30**: compaction の詳細 (最小ループ後)。
-3. **D41**: コアのエラーコード体系を `ERROR_CODES` に集約してよいか。
-4. **D17 / D29**: config プロンプトの上限と、1 ターンの最大ステップ。
-5. **D26**: 将来の worker 化に向けた ctx のシリアライズ境界。
+1. **D53**: `context.overflowRatio` の既定 0.9 でよいか。
+2. **D54**: ui ロールが任意の `closed` セッションを削除できるようにするか。
+3. **D30**: compaction の要約方式・保持件数 (M1 後)。
+4. **D41**: コアのエラーコード体系を `ERROR_CODES` に集約してよいか。
+5. **D17 / D29**: config プロンプトの上限と、1 ターンの最大ステップ。
 
 ## 補完の原則
 

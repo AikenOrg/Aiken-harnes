@@ -13,6 +13,7 @@ type Session = {
   state: SessionState;
   model: string;         // 現在選択中のモデル
   autoWake?: boolean;    // アイドル中の完了通知で自動ターン開始
+  lastInputTokens?: number; // 直近の usage.input
   createdAt: number;
 };
 ```
@@ -66,7 +67,14 @@ fork は `session.manage` を必要とする。spawn は上記の 2 権限を必
 - 途中の `tool_call` は捨てる。`tool_result` と対にならない tool_call は API 上不正な会話になるため。
 - ユーザーが「続けて」と言ったとき、AI が何を言いかけていたか分かるようにする。
 
-### 1.6 履歴との関係
+### 1.6 コンテキスト上限
+
+- コアはプロバイダーが返した `usage.input` をセッションごとに記録する。
+- `context.overflowRatio` (既定 0.9) を超えたら、まず compaction を試みる。
+- compactor がいない、または compaction できない場合、履歴を黙って切り捨てず、ターンを止めて `turn.ended (reason: "context_overflow")` を発行し、UI に通知する。
+- 記録した `lastInputTokens` は `compaction.decide` フックの入力にも使う。
+
+### 1.7 履歴との関係
 
 - 実行中の履歴はコアのメモリが唯一の正。ループは毎ターンそこから読む。
 - `history-store` は `message.appended` を購読して書き出す投影であり、コアの履歴を置き換えない。

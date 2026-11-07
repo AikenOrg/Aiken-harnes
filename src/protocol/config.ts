@@ -39,6 +39,11 @@ export const jobsConfigSchema = z.object({
   resultTtlDays: z.number().int().positive().optional(),
 });
 
+export const contextConfigSchema = z.object({
+  /** コンテキスト上限に対する使用率のしきい値。超えたら compaction か停止。 */
+  overflowRatio: z.number().gt(0).max(1).optional(),
+});
+
 export const logConfigSchema = z.object({
   level: z.enum(["debug", "info", "warn", "error"]).optional(),
   file: z.string().optional(),
@@ -54,6 +59,7 @@ export const configSchema = z.object({
   restore: z.enum(["none", "last"]).optional(),
   shell: shellConfigSchema.optional(),
   jobs: jobsConfigSchema.optional(),
+  context: contextConfigSchema.optional(),
   log: logConfigSchema.optional(),
   dataDir: z.string().optional(),
   prompt: z.object({
@@ -73,3 +79,4 @@ export type ModuleEntry = z.infer<typeof moduleEntrySchema>;
 export type HarnessConfig = z.infer<typeof configSchema>;
 export type JobsConfig = z.infer<typeof jobsConfigSchema>;
 export type ShellConfig = z.infer<typeof shellConfigSchema>;
+export type ContextConfig = z.infer<typeof contextConfigSchema>;

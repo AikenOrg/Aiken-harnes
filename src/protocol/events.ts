@@ -63,7 +63,7 @@ export const eventSchemas = {
   "turn.ended": z.object({
     v,
     turnId: z.string(),
-    reason: z.enum(["completed", "cancelled", "error"]),
+    reason: z.enum(["completed", "cancelled", "error", "context_overflow"]),
   }),
 
   "model.requested": z.object({

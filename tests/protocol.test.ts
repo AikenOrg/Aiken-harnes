@@ -96,6 +96,7 @@ describe("protocol", () => {
       ],
       models: { default: "anthropic/claude" },
       restore: "last",
+      context: { overflowRatio: 0.9 },
       shell: { mode: "whitelist", allow: ["git"] },
       jobs: {
         autoWake: true,
@@ -109,6 +110,7 @@ describe("protocol", () => {
     expect(parsed.modules).toHaveLength(2);
     expect(parsed.models.default).toBe("anthropic/claude");
     expect(parsed.restore).toBe("last");
+    expect(parsed.context?.overflowRatio).toBe(0.9);
     expect(parsed.jobs?.autoWake).toBe(true);
     expect(parsed.jobs?.maxConcurrentPerSession).toBe(8);
 
@@ -154,10 +156,12 @@ describe("protocol", () => {
       state: "restoring",
       model: "fake/model",
       autoWake: false,
+      lastInputTokens: 1234,
       createdAt: 1,
     };
 
     expect("messages" in session).toBe(false);
+    expect(session.lastInputTokens).toBe(1234);
   });
 });
 
@@ -192,5 +196,16 @@ describe("job limits", () => {
 
     expect(error.code).toBe("too_many_jobs");
     expect(error.runningJobIds).toHaveLength(2);
+  });
+});
+
+describe("context overflow", () => {
+  test("turn.ended can report context_overflow", () => {
+    const parsed = eventSchemas["turn.ended"].safeParse({
+      v: 1,
+      turnId: "turn_1",
+      reason: "context_overflow",
+    });
+    expect(parsed.success).toBe(true);
   });
 });

@@ -27,6 +27,9 @@
     "mode": "whitelist",
     "allow": ["git", "bun", "ls"]
   },
+  "context": {
+    "overflowRatio": 0.9
+  },
   "jobs": {
     "defaultTimeoutMs": 300000,
     "maxTimeoutMs": 900000,
@@ -141,7 +144,16 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 - 通知全体が `maxNotificationChars` を超えたら、超えた分を `ほか N 件: id1, id2, ...` (最大 20 件) に置き換える。AI は `read_result(id)` か `list_jobs` で取得する。
 - `autoWake` はセッション単位で上書きできる (`agent.spawn` の引数)。
 
-## 7. `restore`
+## 7. `context`
+
+| キー | 既定 | 内容 |
+|---|---|---|
+| `overflowRatio` | `0.9` | `usage.input / contextWindow` がこの値以上なら compaction を試みる |
+
+- compactor が無い場合は履歴を切り捨てず、`turn.ended (reason: "context_overflow")` で止める。
+- 値は 0 より大きく 1 以下。
+
+## 8. `restore`
 
 起動時の復元方針。
 
@@ -154,7 +166,7 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 - 復元前に動いていたジョブは `failed (code: "interrupted")`。完了済みで未通知の通知は再キューに積む。
 - 復元失敗時はセッションを `error` にし、UI に通知する。
 
-## 8. `log` / `dataDir` / `prompt` / `secrets`
+## 9. `log` / `dataDir` / `prompt` / `secrets`
 
 | キー | 内容 |
 |---|---|
@@ -168,12 +180,12 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 - 秘密情報は `ctx.secrets.get(name)` で解決する。プロバイダーの `stream()` 中のみ取得できる。
 - 未設定の秘密情報を要求した場合は利用時に例外。
 
-## 9. 承認記録
+## 10. 承認記録
 
 - 保存先はユーザーの設定ディレクトリの `approvals.json`。プロジェクトの config とは分ける。
 - 詳細は [04-modules-roles-permissions.md](04-modules-roles-permissions.md) の 4.2 を参照。
 
-## 10. 環境変数
+## 11. 環境変数
 
 | 変数 | 内容 |
 |---|---|
@@ -185,7 +197,7 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 
 優先順位: CLI 引数 > 環境変数 > config.json > 既定値。
 
-## 11. 検証
+## 12. 検証
 
 - 未知のキーは警告にとどめる (前方互換のため)。
 - 型違反・必須欠落は起動失敗。キーのパス付きで表示する (`modules[1].config.path`)。

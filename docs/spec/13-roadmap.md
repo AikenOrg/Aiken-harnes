@@ -102,6 +102,7 @@
 1. しきい値を超えたら `compaction.decide` が呼ばれる。
 2. compactor だけが `history.rewrite` を実行できる。
 3. 書き換え後も直近 N 件と通知の順序が保たれる。
+4. compactor が無い状態で `usage.input` がしきい値を超えたら、履歴を切り捨てず `turn.ended (context_overflow)` で止まる。
 
 ### E7: 再起動復元 (M3 以降)
 

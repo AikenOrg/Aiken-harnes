@@ -75,6 +75,12 @@ runTurn(session):
   loop:
     pending = jobs.drainNotifications(session.id)  # 完了済みで未通知のもの
     if pending: history.appendTail(session.id, notificationMessage(pending))  # モデル呼び出し直前
+    if contextNearLimit(session):                  # usage.input と contextWindow から判定
+      if compactor available:
+        run compaction (hook: compaction.decide)
+      else:
+        bus.emit turn.ended { reason: "context_overflow" }
+        notify UI; return                          # 履歴は切り捨てない
     system = prompt.assemble(session)              # hook: prompt.assemble
     req = { model, system, messages: history.read(session.id), tools: registry.specs() }
     bus.emit model.requested
@@ -113,6 +119,7 @@ tool async:
 - ジョブの終端は `job.*` だけ。`tool.*` を重ねて発行しない。
 - タイムアウトはコアが管理し、`cancelled (by: "timeout")` にする。
 - `wait` の戻り値で受け取ったジョブは通知しない。
+- `model.completed` の `usage.input` をセッションごとに記録する。`context.overflowRatio` を超えたら compaction を試み、compactor が無ければ `turn.ended (context_overflow)` で止める。履歴の黙った切り捨てはしない。
 - ターンやモデルストリームのキャンセル時は、部分テキストを `interrupted: true` で履歴に残し、途中の tool_call は捨てる。
 
 ## 6. 停止シーケンス

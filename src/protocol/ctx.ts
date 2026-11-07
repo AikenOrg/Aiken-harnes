@@ -26,9 +26,10 @@ export type HistoryApi = {
   appendBatch(sessionId: string, messages: NewMessage[]): Promise<Message[]>;
   /**
    * 永続化モジュールが保存済みの履歴をコアへ戻す。
-   * history-store ロールかつ history.append 権限が必要。
+   * history.restore 権限と history-store ロールが必要。
+   * 状態が restoring で履歴が空のセッションにだけ実行できる。
    */
-  load(sessionId: string, messages: Message[]): Promise<void>;
+  restore(sessionId: string, messages: Message[]): Promise<void>;
   /** compactor のみ。コアのメモリを書き換え、history.rewritten を発行する。 */
   rewrite(sessionId: string, messages: Message[], reason: string): Promise<void>;
   count(sessionId: string): Promise<number>;
@@ -42,8 +43,12 @@ export type PromptApi = {
 
 export type SessionApi = {
   get(sessionId: string): Session;
-  create(opts: { model: string; parentId?: string }): Promise<Session>;
+  create(opts: { model: string; parentId?: string; autoWake?: boolean }): Promise<Session>;
   fork(sessionId: string, opts?: { model?: string }): Promise<Session>;
+  /** 復元可能なセッションの一覧 (session-store の role API 経由)。 */
+  listRestorable(): Promise<Session[]>;
+  /** 保存済みセッションを restoring 状態で開き、履歴の復元を開始する。 */
+  restore(sessionId: string): Promise<Session>;
   close(sessionId: string): Promise<void>;
   setModel(sessionId: string, model: string): void;
 };
@@ -54,6 +59,8 @@ export type AgentApi = {
     prompt?: string;
     volatile?: string;
     model?: string;
+    /** 省略時はサブエージェントの既定 (true)。 */
+    autoWake?: boolean;
     task: string;
   }): Promise<{ sessionId: string }>;
   message(sessionId: string, text: string): Promise<void>;

@@ -102,7 +102,9 @@ ctx.jobs.done(jobId, { summary: string, result: string | Uint8Array });
 ctx.jobs.fail(jobId, { code: string, message: string });
 ```
 
-- `summary` は必須。上限 (既定 200 文字) を超えたらコアが切り詰める。
+- `summary` は必須。上限 (既定 200 文字、設定上限 500 文字) を超えたらコアが切り詰め、切り詰めた印を付ける。文字数はコードポイントで数える。元の大きさは `size` で分かる。
+- 切り詰めた場合は末尾に `…` を付ける。
+- `summary` には「状態と要点の数値だけ」を入れる。長い本文やログを入れない (ツール作者向け規約)。
 - 2 回目以降の呼び出しは無視し、診断ログに残す。
 - ハンドラが例外を投げた場合、コアは `fail({ code: "internal", message })` として扱う。
 - ハンドラが何も呼ばずに終了した場合、ジョブは `running` のまま。タイムアウトで `cancelled (by: "timeout")` になる。
@@ -123,8 +125,16 @@ ctx.jobs.fail(jobId, { code: string, message: string });
 
 ### 3.5 同時実行数の上限
 
-- `jobs.maxConcurrentPerSession` を超える新規ジョブは、実行せずに失敗させる。
-- モデルには `{ code: "job_limit_exceeded", message }` を `tool_result` として返す。**TBD**: キューに積む方式にするか。
+- `jobs.maxConcurrentPerSession` (既定 8) を超える新規 async ジョブは、実行せずに即座に失敗させる。同期ツールは数えない。
+- エラーコードは `too_many_jobs`。エラーには実行中のジョブ ID を載せる。
+
+```json
+{ "code": "too_many_jobs", "message": "...", "runningJobIds": ["job_1", "..."] }
+```
+
+- AI は `runningJobIds` を見て `wait` や `cancel` で整理できる。
+- キューに積まない理由: (1) 詰まっていることが AI に見えない、(2) タイムアウトにキュー待ちを含めるか曖昧、(3) `wait` の挙動が複雑になる。
+- 将来キュー方式が必要になったら、ツールごとの設定として追加する。
 
 ## 4. 結果の保存
 
@@ -143,6 +153,7 @@ ctx.jobs.fail(jobId, { code: string, message: string });
 
 - 次のモデル呼び出しの**直前**に、キューにある通知を**完了順の配列**として 1 つのメッセージにまとめ、履歴の末尾へ追記する。
 - 1 つの通知はちょうど 1 回だけ届く。`job.notified` は通知したジョブごとに発行する。
+- 1 回の通知メッセージ全体にも上限 (既定 2000 文字) を設ける。超えた分は `ほか N 件` とだけ書き、AI に `read_result(id)` で取得させる。省略したジョブの ID の扱いは D49 を参照。
 - 通知ブロック:
 
 ```ts
@@ -162,10 +173,14 @@ type NotificationBlock = {
 
 宛先セッションがアイドルの間にジョブが完了した場合の挙動を設定で選ぶ。
 
-| `jobs.autoWake` | 挙動 |
+| `autoWake` | 挙動 |
 |---|---|
 | `true` | 通知を追記して新しいターンを自動で開始する |
-| `false` (既定) | 通知をキューに保持し、次の `user.message` の直前まで待つ |
+| `false` | 通知をキューに保持し、次の `user.message` の直前まで待つ |
+
+- 最上位セッションの既定は `false` (`jobs.autoWake` で変更可)。ジョブが終わっても勝手にモデルを呼ばず、トークンを使わない。
+- サブエージェントの既定は `true`。誰も入力しないため、起こさないと止まる。`agent.spawn` の `autoWake` で上書きできる。
+- 暴走防止として、連続して自動で起こす回数の上限 (既定 10、`jobs.maxAutoWakeStreak`) を設ける。上限に達したら次のユーザー入力を待つ。カウンタは `user.message` でリセットする。
 
 ## 6. コア提供ツール
 
@@ -219,6 +234,7 @@ type NotificationBlock = {
 |---|---|
 | モジュールが落ちた | そのモジュールの実行中ジョブをすべて `failed (code: "module_died")` にする |
 | セッションが閉じた | そのセッションの実行中ジョブを `cancelled (by: "system")` にする |
+| セッションを復元した | result-store があれば、復元前に動いていたジョブを `failed (code: "interrupted")` にし、未通知の完了通知を再キューに積む |
 | コアが停止する | 全ジョブを `cancelled (by: "system")` にする |
 
 ### 7.4 サブエージェント

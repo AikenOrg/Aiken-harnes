@@ -30,7 +30,7 @@
 
 ### M3: 永続化と UI
 
-- SQLite history-store (投影) + session-store、`ctx.history.load` による復元
+- SQLite history-store (投影) + session-store、`ctx.history.restore` と `session.restore` による復元
 - WebUI (HTTP/WS) とイベント購読
 - ストリーミング表示 (`model.delta` の明示購読)
 - 完了条件: プロセス再起動後も履歴とセッションが復元される。
@@ -103,8 +103,11 @@
 ### E7: 再起動復元 (M3 以降)
 
 1. 会話後にプロセスを停止する。
-2. 再起動時にセッションと履歴が復元される。
-3. 実行中だったジョブは中断扱いになり、running のまま残らない。
+2. 再起動する (`restore: "none"`)。セッションは自動では開かない。
+3. UI が `session.listRestorable()` で一覧を取得し、1 つを選んで `session.restore(id)` を呼ぶ。
+4. 履歴が復元され、セッションは `idle` になる。ターンループは自動で再開しない。
+5. 実行中だったジョブは `interrupted` で失敗し、running のまま残らない。未通知の完了通知は再キューに積まれる。
+6. `restore: "last"` の場合は起動時に直前のセッションが自動で開く。
 
 ## 3. テスト方針
 

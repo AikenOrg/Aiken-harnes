@@ -17,11 +17,17 @@ export type HarnessError = {
   message: string;
 };
 
+/** 同時ジョブ上限の超過。実行中のジョブ ID を AI に渡して整理させる。 */
+export type JobLimitError = HarnessError & {
+  runningJobIds: string[];
+};
+
 /** コアが使うエラーコード。モジュール固有のコードはこの接頭辞を使わない。 */
 export const ERROR_CODES = {
   moduleDied: "module_died",
   jobTimeout: "job_timeout",
-  jobLimitExceeded: "job_limit_exceeded",
+  tooManyJobs: "too_many_jobs",
+  interrupted: "interrupted",
   unknownJob: "unknown_job",
   invalidState: "invalid_state",
   permissionDenied: "permission_denied",

@@ -68,7 +68,7 @@ type HistoryApi = {
   get(sessionId: string, messageId: string): Promise<Message | undefined>;
   append(sessionId: string, message: NewMessage): Promise<Message>;
   appendBatch(sessionId: string, messages: NewMessage[]): Promise<Message[]>;
-  load(sessionId: string, messages: Message[]): Promise<void>;
+  restore(sessionId: string, messages: Message[]): Promise<void>;
   rewrite(sessionId: string, messages: Message[], reason: string): Promise<void>;
   count(sessionId: string): Promise<number>;
 };
@@ -80,13 +80,14 @@ type HistoryApi = {
 | `get` | `history.read` | `message.appended` の ID から本文を引く |
 | `append` | `history.append` | 追記のみ。既存メッセージは変更しない |
 | `appendBatch` | `history.append` | 通知の一括追記。原子的に扱う |
-| `load` | `history.append` + `history-store` ロール | 復元時のみ。コアへ履歴を戻す |
+| `restore` | `history.restore` + `history-store` ロール | `restoring` かつ履歴が空のセッションだけ。コアへ履歴を戻す |
 | `rewrite` | `history.rewrite` + `compactor` ロール | コアがメモリを書き換え、`history.rewritten` を発行 |
 | `count` | `history.read` | |
 
 - `read` の `limit` は末尾から。`before` はカーソル。
 - `append` はコアのメモリへ追記し、`message.appended` を発行する。history-store はそれを購読して保存する。
-- `load` は起動時の復元専用。セッションがアクティブなときの呼び出しは拒否する (D37)。
+- `restore` は復元専用。セッション状態が `restoring` で履歴が空のときだけ許可する。稼働中の履歴は上書きできない (D37)。
+- `restore` の成功後、コアはセッションを `idle` に戻す。失敗したら `error` にする。
 - `rewrite` はコアのメモリを置換し、`history.rewritten` を発行する。永続化モジュールはこれを契機に保存内容を置き換える。
 
 ### 2.4 `ctx.jobs`
@@ -104,6 +105,7 @@ type JobsApi = {
 - 2 回目以降の呼び出しは無視し、診断ログに残す。
 - 存在しないジョブ ID は無視する (診断ログのみ)。
 - コアは結果を result-store に保存し、状態を更新し、イベントを発行し、通知をキューに積む。
+- 同時ジョブ上限を超えた新規ジョブは、`too_many_jobs` と実行中ジョブ ID を `tool_result` として返す。
 - ジョブ ID は `ToolContext.jobId` でハンドラに渡される。ハンドラは `ctx.jobs` と `ctx` の両方にアクセスできる。
 
 ### 2.5 `ctx.prompt`
@@ -125,8 +127,10 @@ type PromptApi = {
 ```ts
 type SessionApi = {
   get(sessionId: string): Session;
-  create(opts: { model: string; parentId?: string }): Promise<Session>;
+  create(opts: { model: string; parentId?: string; autoWake?: boolean }): Promise<Session>;
   fork(sessionId: string, opts?: { model?: string }): Promise<Session>;
+  listRestorable(): Promise<Session[]>;
+  restore(sessionId: string): Promise<Session>;
   close(sessionId: string): Promise<void>;
   setModel(sessionId: string, model: string): void;
 };
@@ -136,6 +140,9 @@ type SessionApi = {
 - `get` は自分のセッションと子孫のみ。
 - `create` で `parentId` を指定できるのは、自身がその親を操作できる場合のみ。
 - `close` は実行中ターンとジョブを `by: "system"` で停止し、セッションを `closed` にする。
+- `listRestorable` / `restore` は `session.manage` が必要。`restore` はセッションを `restoring` にし、history-store の role API `restoreSession` を呼ぶ。
+- `restore` はターンループを再開しない。復元前に動いていたジョブは `failed (code: "interrupted")`、未通知の完了通知は再キューに積む。
+- `create` の `autoWake` はセッション単位の上書き。省略時、最上位は config、サブエージェントは `true`。
 - `setModel` は次のターンから反映する。
 
 ### 2.7 `ctx.agent`
@@ -147,6 +154,7 @@ type AgentApi = {
     prompt?: string;              // session 断片として追加
     volatile?: string;            // volatile 断片として追加
     model?: string;
+    autoWake?: boolean;           // 省略時はサブエージェントの既定 true
     task: string;                 // 最初の user メッセージ
   }): Promise<{ sessionId: string }>;
   message(sessionId: string, text: string): Promise<void>;

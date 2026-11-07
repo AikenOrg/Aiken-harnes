@@ -1,5 +1,5 @@
 /** セッションの状態。履歴や永続化とは独立にコアが保持する。 */
-export type SessionState = "active" | "idle" | "closed" | "error";
+export type SessionState = "restoring" | "active" | "idle" | "closed" | "error";
 
 /** コアが最小限保持するセッション情報。 */
 export type Session = {
@@ -8,5 +8,10 @@ export type Session = {
   state: SessionState;
   /** 現在選択中のモデル (ModelInfo.id)。 */
   model: string;
+  /**
+   * アイドル中にジョブが完了したとき、新しいターンを自動で始めるか。
+   * 最上位セッションの既定は config、サブエージェントの既定は true。
+   */
+  autoWake?: boolean;
   createdAt: number;
 };

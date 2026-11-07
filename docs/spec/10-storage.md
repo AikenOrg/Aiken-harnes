@@ -56,31 +56,43 @@ compactor -> ctx.history.rewrite(sessionId, messages, reason)
 
 ### 3.3 復元
 
+復元は UI の明示要求が基本。起動時に自動で開くのは `config.restore: "last"` のときだけ (既定 `"none"`)。
+
 ```text
-core 起動
-  -> session-store が保存済みセッションをコアへ戻す (role API loadSessions)
-  -> history-store が自身の DB からセッションごとのメッセージを読む
-  -> ctx.history.load(sessionId, messages)
-  -> コアのメモリへ投入
+UI -> ctx.session.listRestorable()        # session-store が一覧を返す
+UI -> ctx.session.restore(sessionId)
+  -> コアが session-store からセッション情報を取得
+  -> コアがセッションを restoring にする (履歴は空)
+  -> コアが history-store の role API restoreSession(sessionId) を呼ぶ
+  -> history-store が DB からメッセージを読み、ctx.history.restore(sessionId, messages)
+  -> コアが履歴を投入し、状態を idle にする
 ```
 
-- `ctx.history.load` は `history.append` 権限と `history-store` ロールが必要 (D37)。
-- 復元できるのは `closed` 以外のセッション。**TBD**: 自動復元するか UI の明示要求にするか (D22)。
+- `ctx.history.restore` は `history.restore` 権限と `history-store` ロールが必要。`restoring` かつ履歴が空のセッションにだけ実行できる (D37)。
+- 稼働中のセッションは上書きできない。偽の履歴を注入させない。
+- 復元してもターンループは再開しない。ユーザー入力か、保留中の通知による autoWake を待つ。
+- result-store があれば、復元前に動いていたジョブを `failed (code: "interrupted")` にし、完了済みで未通知だった通知を再キューに積む。result-store が無ければジョブは復元できない。
+- 復元できるのは `closed` 以外のセッション。自動復元は `config.restore: "last"` のときだけ。
 - 実行中だったターンは復元しない (中断扱い)。
 - session-store が無い場合、セッション ID が存在しないため履歴は復元できない。履歴の復元には session-store が必要。
 
 ## 4. セッションの保存
 
 - session-store は `session.created` / `session.closed` / `session.forked` と `session.setModel` を購読、またはコアから role API で保存依頼を受ける。
-- 復元はコアが role API `loadSessions()` を呼ぶ。コアがセッション状態の所有者であり、モジュールが勝手にコア状態を作らない。
+- 一覧は role API `listRestorable()`、直前のセッションは `latestRestorable()` で返す。コアがセッション状態の所有者であり、モジュールが勝手にコア状態を作らない。
+- 復元は UI の `session.restore(id)` か、`config.restore: "last"` の起動時だけ。
 - `closed` は削除せず状態として保存する。
 
 ## 5. ジョブ結果
 
-- コアはジョブのメタデータ (ID / 状態 / 所有者) をメモリに持つ。
-- 結果本体は result-store に保存する。コアは `resultRef` を保持する。
-- result-store が無い場合はコアがメモリに持つ。再起動で消える。
-- ジョブの状態そのものは永続化しない。再起動時に running だったジョブは復元されない (結果だけが DB に残る場合はある)。**TBD**: 孤立結果の TTL 削除 (D42)。
+- 実行中のジョブ状態の正はコアのメモリ。
+- result-store は結果本体に加え、復元に必要な最小メタデータ (`session_id` / `status` / `notified`) を保存する。
+- ジョブ作成時に `running` を記録し、完了時に状態・summary・size・content を更新する。通知したら `notified = 1` にする。
+- 復元時:
+  - `running` の行は `failed (code: "interrupted")` にする。
+  - `done` / `failed` / `cancelled` かつ `notified = 0` の行は通知キューへ戻す。
+- result-store が無い場合はコアがメモリに持つ。再起動で消えるため、復元時のジョブ回復もできない。
+- **TBD**: 孤立結果の TTL 削除 (D42)。
 
 ## 6. SQLite 接続と同時書き込み
 
@@ -104,7 +116,7 @@ db.exec("PRAGMA foreign_keys = ON;");
 CREATE TABLE IF NOT EXISTS sessions (
   id          TEXT PRIMARY KEY,
   parent_id   TEXT REFERENCES sessions(id),
-  state       TEXT NOT NULL,              -- active / idle / closed / error
+  state       TEXT NOT NULL,              -- restoring / active / idle / closed / error
   model       TEXT NOT NULL,
   created_at  INTEGER NOT NULL,
   updated_at  INTEGER NOT NULL
@@ -122,14 +134,19 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, ordinal);
 
 CREATE TABLE IF NOT EXISTS job_results (
-  job_id      TEXT PRIMARY KEY,
-  tool        TEXT NOT NULL,
-  status      TEXT NOT NULL,               -- done / failed / cancelled
-  summary     TEXT NOT NULL,
-  size        INTEGER NOT NULL,
-  content     BLOB NOT NULL,
-  created_at  INTEGER NOT NULL
+  job_id           TEXT PRIMARY KEY,
+  session_id       TEXT NOT NULL,
+  owner_session_id TEXT NOT NULL,
+  tool             TEXT NOT NULL,
+  status           TEXT NOT NULL,          -- running / done / failed / cancelled
+  summary          TEXT,
+  size             INTEGER,
+  content          BLOB,
+  notified         INTEGER NOT NULL DEFAULT 0,
+  created_at       INTEGER NOT NULL,
+  ended_at         INTEGER
 );
+CREATE INDEX IF NOT EXISTS idx_jobs_session ON job_results(session_id, status, notified);
 
 CREATE TABLE IF NOT EXISTS logs (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

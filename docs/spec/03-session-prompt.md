@@ -12,6 +12,7 @@ type Session = {
   parentId?: string;     // サブエージェントの親
   state: SessionState;
   model: string;         // 現在選択中のモデル
+  autoWake?: boolean;    // アイドル中の完了通知で自動ターン開始
   createdAt: number;
 };
 ```
@@ -23,14 +24,16 @@ type Session = {
 ### 1.2 状態遷移
 
 ```text
-created -> active -> idle -> active -> ... -> closed
+created -> idle -> active -> idle -> ... -> closed
+created -> restoring -> idle
                   \-> error (復帰可能なら idle へ)
 ```
 
 - `active`: ターン実行中。
 - `idle`: 入力待ち。
+- `restoring`: 保存済み履歴を復元中。`ctx.history.restore` だけが許可される。
 - `closed`: 新規入力を受け付けない。履歴はコアのメモリに残る (プロセス終了まで)。永続化は任意。
-- `error`: ターンが回復不能に失敗。`session.closed` は発行しない。
+- `error`: ターンが回復不能に失敗。`session.closed` は発行しない。復元失敗もここに落ちる。
 
 ### 1.3 サブエージェント
 
@@ -41,6 +44,7 @@ created -> active -> idle -> active -> ... -> closed
 - 子セッションのモデルは親と同一を既定とする。明示指定は `agent.spawn` の引数で行う (許可モデルの範囲内)。
 - 子のジョブをキャンセルできるのは、そのセッション自身と祖先のみ (`agent.cancel(sessionId)`)。兄弟・他人の子孫は不可。
 - ターン終了時、子セッションは `closed` にせず `idle` のまま保持する (再利用・監査のため)。明示クローズは `session.manage`。
+- サブエージェントの `autoWake` は既定 `true`。誰も入力しないため、完了通知で起こさないと止まる。`agent.spawn` の `autoWake` で上書きできる。
 
 ### 1.4 fork と spawn
 
@@ -55,7 +59,11 @@ fork は `session.manage` を必要とする。spawn は上記の 2 権限を必
 
 - 実行中の履歴はコアのメモリが唯一の正。ループは毎ターンそこから読む。
 - `history-store` は `message.appended` を購読して書き出す投影であり、コアの履歴を置き換えない。
-- 再開時は `ctx.history.load(sessionId, messages)` で保存済み履歴をコアへ戻す。
+- 復元は UI の明示要求 (`ctx.session.restore`) で始まる。コアはセッションを `restoring` にし、履歴が空の状態で `ctx.history.restore(sessionId, messages)` を受け付ける。
+- `ctx.history.restore` は `history.restore` 権限と `history-store` ロールを持つモジュールだけが呼べる。稼働中のセッションは上書きできない。
+- `config.restore: "last"` のときだけ、起動時に直前のセッションを自動で開く。既定は `"none"`。
+- 復元してもターンループは再開しない。ユーザー入力か、保留中の通知による autoWake を待つ。
+- 復元前に動いていたジョブは `failed (code: "interrupted")`。完了済みで未通知の通知は再キューに積む。
 - fork はコアのメモリ履歴を複製する。spawn は空の履歴で始める。
 - compaction の書き換えはコアの `ctx.history.rewrite` を通り、コアが `history.rewritten` を発行する。
 

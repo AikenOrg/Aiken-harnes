@@ -4,11 +4,13 @@
 
 ```text
 config 読込 -> core 初期化 -> manifest 読込 -> ロール排他検査 -> 権限承認
--> module.init -> core.started -> session 復元 -> history 復元 -> 入力受付
+-> module.init -> core.started -> 入力受付
+   (restore: "last" のときだけ session 復元 -> history 復元)
 ```
 
+- 既定では起動時にセッションを復元しない (`restore: "none"`)。UI が明示的に `session.restore(id)` を要求する。
+- 復元中のセッションは `restoring` 状態で、`user.message` を受け付けない。
 - 各段階の失敗は起動失敗として扱い、終了コード 1 で終了する。ただし「無効化して続行」の対象は 2 節の表に従う。
-- 復元が終わるまで `user.message` を受け付けない。
 - 起動途中で失敗した場合、それまでに初期化したモジュールの `dispose` を逆順に呼ぶ。
 
 ## 2. モジュール障害の扱い
@@ -31,6 +33,14 @@ config 読込 -> core 初期化 -> manifest 読込 -> ロール排他検査 -> �
 - モジュールが落ちたら、そのモジュールが実行していたジョブをすべて `failed (code: "module_died")` にする。
 - `job.failed` を発行し、通知キューに積む。
 - コアが停止する場合は、全ジョブを `cancelled (by: "system")` にする。
+
+## 3.1 セッション復元時のジョブ
+
+- result-store がある場合、復元前に動いていたジョブは `failed (code: "interrupted")` として扱う。
+- 完了済みで未通知だった通知は再キューに積み、次のモデル呼び出し直前に届ける。
+- result-store が無い場合、ジョブ状態は復元できない (メモリのみ)。
+- 復元してもターンループは自動で再開しない。ユーザー入力か、保留中の通知による autoWake を待つ。
+- 復元に失敗したらセッションを `error` にし、`session.closed` は発行しない。UI から再試行できる。
 
 ## 4. critical の範囲
 

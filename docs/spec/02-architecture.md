@@ -52,11 +52,12 @@ src/protocol  ←  src/core  ←  src/modules
 5. 要求権限をユーザーへ提示し、承認を得る。危険な組み合わせは警告する。
 6. 承認済みモジュールを順に `init` する。`ctx` を渡す。
 7. `core.started` を発行する。
-8. session-store があれば `loadSessions()` でセッションを復元する。
-9. history-store があれば保存済み履歴を読み、`ctx.history.load` でコアへ戻す。
-10. UI の準備完了後、入力受付を開始する。
+8. `config.restore: "last"` のときだけ、session-store の `latestRestorable()` で直前のセッションを開く。既定は `"none"`。
+9. UI の準備完了後、入力受付を開始する。UI は `session.listRestorable()` → `session.restore(id)` で任意のセッションを復元できる。
+10. 復元はコアがセッションを `restoring` にし、history-store の role API `restoreSession(id)` を呼ぶ。history-store が `ctx.history.restore` で履歴を戻す。
 
-- 8〜9 の間は入力を受け付けない (復元中の追記を防ぐ)。
+- 復元中のセッションは `restoring` 状態で、`user.message` を受け付けない。
+- 復元してもターンループは再開しない。ユーザー入力か、保留中の通知による autoWake を待つ。
 - `critical: true` のモジュール、または provider がロードできない場合は起動中止。
 - それ以外の失敗は `module.failed` → `module.disabled` で続行する。
 - 依存先が無効化されたモジュールも連鎖的に無効化する。

@@ -27,8 +27,14 @@ export const jobsConfigSchema = z.object({
   maxTimeoutMs: z.number().int().positive().optional(),
   /** セッションあたりの同時実行ジョブ数。 */
   maxConcurrentPerSession: z.number().int().positive().optional(),
-  /** アイドル中にジョブが完了したとき、新しいターンを自動で始めるか。 */
+  /** 最上位セッションの autoWake 既定値。サブエージェントは常に true が既定。 */
   autoWake: z.boolean().optional(),
+  /** 連続して自動で起こす回数の上限。 */
+  maxAutoWakeStreak: z.number().int().positive().optional(),
+  /** summary の上限文字数 (コードポイント)。設定できる上限は 500。 */
+  maxSummaryChars: z.number().int().positive().max(500).optional(),
+  /** 1 回の通知メッセージ全体の上限文字数。 */
+  maxNotificationChars: z.number().int().positive().optional(),
 });
 
 export const logConfigSchema = z.object({
@@ -42,6 +48,8 @@ export const configSchema = z.object({
   models: z.object({
     default: z.string().min(1),
   }),
+  /** 起動時の復元方針。none: 何もしない。last: 直前のセッションを自動で開く。 */
+  restore: z.enum(["none", "last"]).optional(),
   shell: shellConfigSchema.optional(),
   jobs: jobsConfigSchema.optional(),
   log: logConfigSchema.optional(),

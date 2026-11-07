@@ -22,6 +22,7 @@
   "models": {
     "default": "anthropic/claude-sonnet-4-5"
   },
+  "restore": "none",
   "shell": {
     "mode": "whitelist",
     "allow": ["git", "bun", "ls"]
@@ -29,8 +30,11 @@
   "jobs": {
     "defaultTimeoutMs": 300000,
     "maxTimeoutMs": 900000,
-    "maxConcurrentPerSession": 4,
-    "autoWake": false
+    "maxConcurrentPerSession": 8,
+    "autoWake": false,
+    "maxAutoWakeStreak": 10,
+    "maxSummaryChars": 200,
+    "maxNotificationChars": 2000
   },
   "log": { "level": "info", "file": "./data/harness.log" },
   "dataDir": "./data",
@@ -67,7 +71,7 @@
 
 - パスは相対 (config.json のディレクトリ基準) または絶対。
 - 同じモジュールの重複ロードは起動失敗。
-- `use: "user/repo"` 形式の外部取得は、強制機構ができるまで**エラー**にする。
+- `use: "user/repo"` 形式の外部取得は、強制機構ができるまで**エラー**にする。将来もディレクトリ形式だけを許可する。
 
 ### 3.1 ロード順
 
@@ -78,7 +82,16 @@
 
 ### 3.2 manifest の場所
 
-manifest はコードとは別の `manifest.json`。`use` がディレクトリなら `<dir>/manifest.json`、ファイルなら `<dir>/<basename>.manifest.json` を探す (無ければ `<dir>/manifest.json`)。**TBD (D36)**。
+manifest はコードとは別のファイルに置く。コードへの埋め込みは認めない。
+
+| `use` の指す先 | manifest の場所 | エントリ |
+|---|---|---|
+| ディレクトリ (基本) | `<dir>/manifest.json` | `main` (既定 `index.js`) |
+| ファイル (補助) | 同じ場所の `<basename>.manifest.json` (例: `read.js` → `read.manifest.json`) | そのファイル |
+
+- どちらも見つからなければロードを拒否する。
+- モジュール名はファイル名ではなく manifest の `name`。重複は起動時エラー。
+- 外部取得 (将来) はディレクトリ形式だけ。
 
 ### 3.3 モジュール設定
 
@@ -114,13 +127,32 @@ manifest はコードとは別の `manifest.json`。`use` がディレクトリ�
 |---|---|---|
 | `defaultTimeoutMs` | `300000` | async ツールの既定タイムアウト |
 | `maxTimeoutMs` | `900000` | ツールが宣言できる上限 |
-| `maxConcurrentPerSession` | `4` | セッションあたりの同時ジョブ数 |
-| `autoWake` | `false` | アイドル中の完了通知で新しいターンを開始するか |
+| `maxConcurrentPerSession` | `8` | セッションあたりの同時 async ジョブ数。同期ツールは数えない |
+| `autoWake` | `false` | 最上位セッションの autoWake 既定。サブエージェントは `true` |
+| `maxAutoWakeStreak` | `10` | 連続して自動で起こす回数の上限 |
+| `maxSummaryChars` | `200` | summary の上限。設定できる最大は 500 |
+| `maxNotificationChars` | `2000` | 1 回の通知メッセージ全体の上限 |
 
 - ツールの `timeoutMs` が `maxTimeoutMs` を超える場合は切り詰める。
-- 同時実行数を超えた新規ジョブは `job_limit_exceeded` で失敗させる (**TBD**: キュー方式)。
+- 同時実行数を超えた新規 async ジョブは `too_many_jobs` で即座に失敗させる。エラーに実行中のジョブ ID を載せる。
+- `summary` はコードポイント数で切り詰め、切り詰めた印を付ける。`size` は元のサイズを保持する。
+- 通知全体が `maxNotificationChars` を超えたら、超えた分を `ほか N 件` に置き換える。AI は `read_result(id)` で取得する。
+- `autoWake` はセッション単位で上書きできる (`agent.spawn` の引数)。
 
-## 7. `log` / `dataDir` / `prompt` / `secrets`
+## 7. `restore`
+
+起動時の復元方針。
+
+| 値 | 挙動 |
+|---|---|
+| `"none"` (既定) | 何もしない。UI が `session.listRestorable()` → `session.restore(id)` で明示的に開く |
+| `"last"` | 直前のセッションを自動で開く。ターンループは再開しない |
+
+- 自動復元でも、ユーザー入力か保留中の通知による autoWake までモデルは呼ばない。
+- 復元前に動いていたジョブは `failed (code: "interrupted")`。完了済みで未通知の通知は再キューに積む。
+- 復元失敗時はセッションを `error` にし、UI に通知する。
+
+## 8. `log` / `dataDir` / `prompt` / `secrets`
 
 | キー | 内容 |
 |---|---|
@@ -134,12 +166,12 @@ manifest はコードとは別の `manifest.json`。`use` がディレクトリ�
 - 秘密情報は `ctx.secrets.get(name)` で解決する。プロバイダーの `stream()` 中のみ取得できる。
 - 未設定の秘密情報を要求した場合は利用時に例外。
 
-## 8. 承認記録
+## 9. 承認記録
 
 - 保存先はユーザーの設定ディレクトリの `approvals.json`。プロジェクトの config とは分ける。
 - 詳細は [04-modules-roles-permissions.md](04-modules-roles-permissions.md) の 4.2 を参照。
 
-## 9. 環境変数
+## 10. 環境変数
 
 | 変数 | 内容 |
 |---|---|
@@ -151,7 +183,7 @@ manifest はコードとは別の `manifest.json`。`use` がディレクトリ�
 
 優先順位: CLI 引数 > 環境変数 > config.json > 既定値。
 
-## 10. 検証
+## 11. 検証
 
 - 未知のキーは警告にとどめる (前方互換のため)。
 - 型違反・必須欠落は起動失敗。キーのパス付きで表示する (`modules[1].config.path`)。

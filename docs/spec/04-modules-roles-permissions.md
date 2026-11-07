@@ -41,15 +41,18 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 
 ### 1.2 manifest の解決
 
-`config.json` の `use` はモジュールのファイルまたはディレクトリを指す。
+`config.json` の `use` はモジュールのディレクトリまたはファイルを指す。
 
-| `use` の指す先 | manifest の場所 |
-|---|---|
-| ディレクトリ | `<dir>/manifest.json`、エントリは `main` (既定 `index.js`) |
-| ファイル | `<dir>/<basename>.manifest.json`。無ければ `<dir>/manifest.json` |
+| `use` の指す先 | manifest の場所 | エントリ |
+|---|---|---|
+| ディレクトリ (基本) | `<dir>/manifest.json` | `main` (既定 `index.js`) |
+| ファイル (補助) | 同じ場所の `<basename>.manifest.json` (例: `read.js` → `read.manifest.json`) | そのファイル |
 
-- この解決規則は **TBD (D36)**。実装時に確定する。
-- manifest が無い・不正なモジュールはロードしない。`critical` なら起動中止。
+- どちらも見つからなければ**ロードを拒否**する。権限の宣言なしにコードを動かさない。
+- モジュール名はファイル名ではなく manifest の `name` で決める。重複は起動時エラー。
+- コードの中に manifest を埋め込む形は認めない。コード実行前に権限を読む必要があるため。
+- 外部取得 (将来) はディレクトリ形式だけにする。
+- manifest が不正なモジュールはロードしない。`critical` なら起動中止。
 
 ### 1.3 ロード順
 
@@ -64,7 +67,7 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 | `provider` | 複数可 | モデル ID の接頭辞ごとに担当が 1 つ。最低 1 つ必須 |
 | `history-store` | 1 | 履歴の永続化 |
 | `session-store` | 1 | セッション情報の永続化と復元 |
-| `result-store` | 1 | 非同期ジョブの結果保存 (`read_result` の裏側) |
+| `result-store` | 1 | 非同期ジョブの結果と復元用メタデータの保存 (`read_result` の裏側) |
 | `compactor` | 1 | 履歴の書き換え |
 | `shell` | 1 | `exec` 権限を持てる唯一のロール |
 | `ui` | 複数可 | user.message / user.cancel の発行とイベント表示 |
@@ -90,7 +93,7 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 ### 2.3 history-store
 
 - 実行中の履歴の正はコアのメモリ。history-store は `message.appended` を購読して書き出す投影 (projection)。
-- 再開時は `ctx.history.load(sessionId, messages)` でコアへ戻す。
+- 復元時は `ctx.history.restore(sessionId, messages)` でコアへ戻す。`history.restore` 権限が必要。
 - コアが単体で起動できるため、history-store は必須ではない。永続化が必要な構成で追加する。
 
 ### 2.4 compactor
@@ -111,7 +114,8 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 | 権限 | 許可される操作 | 主な保持ロール |
 |---|---|---|
 | `history.read` | `ctx.history.read` / `get` / 購読 | history-store, compactor, 監視用途 |
-| `history.append` | `ctx.history.append` / `appendBatch` / `load` | history-store, ツール |
+| `history.append` | `ctx.history.append` / `appendBatch` | history-store, ツール |
+| `history.restore` | `ctx.history.restore` | `history-store` のみ |
 | `history.rewrite` | `ctx.history.rewrite` | compactor のみ |
 | `prompt.contribute` | `ctx.prompt.contribute` | 任意 (承認制) |
 | `session.manage` | `ctx.session.*` | ui, agent 系 |
@@ -122,7 +126,7 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 
 - `ctx` は呼び出しのたびに権限を検査する。未承認なら `permission.denied` を発行し、例外を返す。
 - 履歴の権限検査はコアに一本化する。履歴モジュールは保存先であって、権限の番人ではない。
-- `ctx.history.load` は `history.append` と `history-store` ロールの両方を必要とする (D37)。
+- `ctx.history.restore` は `history.restore` 権限と `history-store` ロールの両方を必要とする。状態が `restoring` で履歴が空のセッションにだけ実行できる (D37)。
 
 ### 3.2 外部資源系 (宣言と承認のみ)
 

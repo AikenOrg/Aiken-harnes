@@ -30,6 +30,7 @@ export type ExclusiveRole = (typeof EXCLUSIVE_ROLES)[number];
 export type CoreCapability =
   | "history.read"
   | "history.append"
+  | "history.restore"
   | "history.rewrite"
   | "prompt.contribute"
   | "session.manage"

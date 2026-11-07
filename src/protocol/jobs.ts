@@ -29,6 +29,8 @@ export type Job = {
   /** result-store 側の参照。 */
   resultRef?: string;
   cancelBy?: CancelBy;
+  /** 完了通知を履歴へ追記済みか。result-store の復元用メタデータにも保存する。 */
+  notified?: boolean;
 };
 
 /**

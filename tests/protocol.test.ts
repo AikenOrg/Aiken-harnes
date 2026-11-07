@@ -1,11 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
+  ERROR_CODES,
   eventSchemas,
   type NotificationBlock,
   EXCLUSIVE_ROLES,
   addUsage,
   configSchema,
   type CoreEvent,
+  type JobLimitError,
   type JobNotification,
   type ModuleManifest,
   type Provider,
@@ -69,13 +71,14 @@ describe("protocol", () => {
       subscribes: ["message.appended", "history.rewritten"],
       permissions: [
         { cap: "history.read" },
+        { cap: "history.restore" },
         { cap: "fs.write", paths: ["./data"] },
       ],
       tools: [{ name: "search_log", mode: "sync" }],
     };
 
     expect(manifest.roles).toContain("result-store");
-    expect(manifest.permissions?.[1]?.paths).toEqual(["./data"]);
+    expect(manifest.permissions?.[2]?.paths).toEqual(["./data"]);
     expect(EXCLUSIVE_ROLES).toContain("shell");
     expect(EXCLUSIVE_ROLES).not.toContain("provider");
   });
@@ -88,13 +91,30 @@ describe("protocol", () => {
         { use: "./modules/sqlite.js", config: { path: "./data/h.db" } },
       ],
       models: { default: "anthropic/claude" },
+      restore: "last",
       shell: { mode: "whitelist", allow: ["git"] },
-      jobs: { autoWake: true, maxConcurrentPerSession: 4 },
+      jobs: {
+        autoWake: true,
+        maxConcurrentPerSession: 8,
+        maxAutoWakeStreak: 10,
+        maxSummaryChars: 200,
+        maxNotificationChars: 2000,
+      },
     });
 
     expect(parsed.modules).toHaveLength(2);
     expect(parsed.models.default).toBe("anthropic/claude");
+    expect(parsed.restore).toBe("last");
     expect(parsed.jobs?.autoWake).toBe(true);
+    expect(parsed.jobs?.maxConcurrentPerSession).toBe(8);
+
+    const tooLarge = configSchema.safeParse({
+      version: 1,
+      modules: [],
+      models: { default: "x/y" },
+      jobs: { maxSummaryChars: 501 },
+    });
+    expect(tooLarge.success).toBe(false);
   });
 
   test("provider interface and usage aggregation", async () => {
@@ -127,8 +147,9 @@ describe("protocol", () => {
     const session: Session = {
       id: "ses_1",
       parentId: "ses_0",
-      state: "idle",
+      state: "restoring",
       model: "fake/model",
+      autoWake: false,
       createdAt: 1,
     };
 
@@ -154,5 +175,18 @@ describe("event schema conventions", () => {
     };
 
     expect(block.entries.map((entry) => entry.id)).toEqual(["job_1", "job_2"]);
+  });
+});
+
+describe("job limits", () => {
+  test("too_many_jobs carries running job ids", () => {
+    const error: JobLimitError = {
+      code: ERROR_CODES.tooManyJobs,
+      message: "session job limit exceeded",
+      runningJobIds: ["job_1", "job_2"],
+    };
+
+    expect(error.code).toBe("too_many_jobs");
+    expect(error.runningJobIds).toHaveLength(2);
   });
 });

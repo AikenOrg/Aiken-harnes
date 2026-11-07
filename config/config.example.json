@@ -2,32 +2,44 @@
   "version": 1,
   "modules": [
     {
-      "use": "../src/modules/provider-openai/index.ts",
-      "config": { "model": "gpt-4.1" }
+      "use": "../src/modules/provider-openai",
+      "config": {
+        "model": "gpt-4.1"
+      }
     },
     {
-      "use": "../src/modules/sqlite/index.ts",
-      "config": { "path": "../data/harness.sqlite" }
+      "use": "../src/modules/sqlite",
+      "config": {
+        "path": "../data/harness.sqlite"
+      }
     },
-    "../src/modules/tools-fs/index.ts",
+    "../src/modules/tools-fs",
     {
-      "use": "../src/modules/shell/index.ts",
+      "use": "../src/modules/shell",
       "config": {}
     },
-    "../src/modules/ui-tui/index.ts"
+    "../src/modules/ui-tui"
   ],
   "models": {
     "default": "openai/gpt-4.1"
   },
+  "restore": "none",
   "shell": {
     "mode": "whitelist",
-    "allow": ["ls", "git", "bun"]
+    "allow": [
+      "ls",
+      "git",
+      "bun"
+    ]
   },
   "jobs": {
     "defaultTimeoutMs": 300000,
     "maxTimeoutMs": 900000,
-    "maxConcurrentPerSession": 4,
-    "autoWake": false
+    "maxConcurrentPerSession": 8,
+    "autoWake": false,
+    "maxAutoWakeStreak": 10,
+    "maxSummaryChars": 200,
+    "maxNotificationChars": 2000
   },
   "log": {
     "level": "info"
@@ -37,6 +49,8 @@
     "system": "あなたはツールを使えるアシスタントです。非同期ジョブの結果は通知と read_result で取得してください。"
   },
   "secrets": {
-    "OPENAI_API_KEY": { "env": "OPENAI_API_KEY" }
+    "OPENAI_API_KEY": {
+      "env": "OPENAI_API_KEY"
+    }
   }
 }

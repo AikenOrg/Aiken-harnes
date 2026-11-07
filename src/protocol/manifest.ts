@@ -37,6 +37,7 @@ export type CoreCapability =
   | "agent.spawn"
   | "agent.message"
   | "tool.register"
+  | "tool.intercept"
   | `module.talk:${string}`;
 
 /** 外部資源系の権限。現状は宣言と承認のみ。 */

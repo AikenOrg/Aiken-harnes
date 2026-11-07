@@ -24,7 +24,7 @@
 - JobManager、`ctx.jobs.done` / `fail`、タイムアウト、同時実行数上限
 - メモリ result-store (SQLite は任意)
 - 非同期 shell ツール、AbortSignal によるキャンセル
-- `wait` / `cancel` / `read_result`
+- `wait` / `cancel` / `read_result(offset, limit)` / `list_jobs`
 - 通知の一括末尾追記と `job.notified`、autoWake
 - 完了条件: 評価シナリオ E1〜E3 が通る。
 
@@ -74,6 +74,7 @@
 2. モデルが `cancel(jobId)` を呼ぶ。
 3. `job.cancelled` の `by` が `ai`。
 4. モジュールが中断できない場合でも、遅延結果は破棄され `job.done` にならない。
+5. モデルストリームをキャンセルした場合、生成済みテキストは `interrupted: true` で履歴に残り、途中の tool_call は捨てられる。
 5. 範囲外のジョブ ID は `permission.denied`。
 
 ### E3: タイムアウト

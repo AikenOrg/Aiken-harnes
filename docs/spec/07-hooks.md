@@ -11,7 +11,7 @@
 | フック | 登録に必要な権限 |
 |---|---|
 | `prompt.assemble` | `prompt.contribute` |
-| `tool.before` | `tool.register` または `exec` (shell) |
+| `tool.before` | `tool.intercept` |
 | `compaction.decide` | `compactor` ロール |
 
 ## 2. `prompt.assemble`
@@ -55,9 +55,11 @@ type ToolBeforeHook = (input: {
   - 1 つでも `deny` があれば拒否。理由を最初の deny から採る。
   - `args` は最後に返したフックの値を使う。ただし zod で再検証し、不正なら拒否する。
 - 拒否時:
-  - `permission.denied` を発行する (`cap` はツールが要求する権限、または `tool.execute`)。
-  - モデルには拒否理由を `tool_result` として返す。ツールは実行しない。
-- shell のホワイトリスト判定と個別承認はここで行う。
+  - `permission.denied` を発行する (`hook: "tool.before"`、`cap`、理由)。
+  - 続けて `tool.failed (code: "denied")` を発行する。
+  - モデルには拒否理由を `tool_result` として返す。ツールは実行しない。返さないと AI が同じ呼び出しを繰り返す。
+- `tool.intercept` は重い権限。承認時に「他ツールの拒否・引数書き換えができる」と警告する。
+- shell の承認モジュールは `tool.intercept` を使う。
 - ユーザー承認が必要な場合、UI モジュールが `permission.requested` を購読して問い合わせる。フックは回答が来るまで待てる (ターンはブロックされる)。
 
 ## 4. `compaction.decide`

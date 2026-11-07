@@ -54,6 +54,8 @@ export type JobResult = {
   content: string;
   /** content が size より短い場合 true。 */
   truncated: boolean;
+  /** 続きを読むときに read_result へ渡す offset。末尾なら省略。 */
+  nextOffset?: number;
 };
 
 /** ctx.jobs.done の引数。result は result-store に保存される。 */

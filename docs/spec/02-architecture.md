@@ -54,7 +54,7 @@ src/protocol  ←  src/core  ←  src/modules
 7. `core.started` を発行する。
 8. `config.restore: "last"` のときだけ、session-store の `latestRestorable()` で直前のセッションを開く。既定は `"none"`。
 9. UI の準備完了後、入力受付を開始する。UI は `session.listRestorable()` → `session.restore(id)` で任意のセッションを復元できる。
-10. 復元はコアがセッションを `restoring` にし、history-store の role API `restoreSession(id)` を呼ぶ。history-store が `ctx.history.restore` で履歴を戻す。
+- 復元の流れ: session-store がセッションを `restoring` で作り、続いてコアが history-store の role API `restoreSession(id)` を呼ぶ。history-store が `ctx.history.restore` で履歴を戻す。
 
 - 復元中のセッションは `restoring` 状態で、`user.message` を受け付けない。
 - 復元してもターンループは再開しない。ユーザー入力か、保留中の通知による autoWake を待つ。
@@ -99,18 +99,21 @@ tool async:
   jobId = jobs.create({ sessionId, ownerSessionId, callId, tool, timeoutMs })
   bus.emit job.running
   handler(args, { signal, jobId })
+  bus.emit tool.completed { jobId }       # 呼び出しがモデルに返る時点
   ...
   module -> ctx.jobs.done(jobId, { summary, result })
          or ctx.jobs.fail(jobId, { code, message })
   -> コアが result-store へ保存
-  -> 状態更新 + job.done / job.failed
+  -> 状態更新 + job.done / job.failed (callId 付き)
   -> 通知キューへ
   -> 次のモデル呼び出し直前に履歴末尾へ追記 (job.notified)
 ```
 
 - `ctx.jobs.done` / `fail` はジョブごとにちょうど 1 回。2 回目以降は無視。
+- ジョブの終端は `job.*` だけ。`tool.*` を重ねて発行しない。
 - タイムアウトはコアが管理し、`cancelled (by: "timeout")` にする。
 - `wait` の戻り値で受け取ったジョブは通知しない。
+- ターンやモデルストリームのキャンセル時は、部分テキストを `interrupted: true` で履歴に残し、途中の tool_call は捨てる。
 
 ## 6. 停止シーケンス
 

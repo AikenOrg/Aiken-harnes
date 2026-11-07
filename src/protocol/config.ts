@@ -35,6 +35,8 @@ export const jobsConfigSchema = z.object({
   maxSummaryChars: z.number().int().positive().max(500).optional(),
   /** 1 回の通知メッセージ全体の上限文字数。 */
   maxNotificationChars: z.number().int().positive().optional(),
+  /** 終端かつ通知済みの結果を掃除するまでの日数。 */
+  resultTtlDays: z.number().int().positive().optional(),
 });
 
 export const logConfigSchema = z.object({

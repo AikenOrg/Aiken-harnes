@@ -132,6 +132,7 @@ type SessionApi = {
   listRestorable(): Promise<Session[]>;
   restore(sessionId: string): Promise<Session>;
   close(sessionId: string): Promise<void>;
+  delete(sessionId: string): Promise<void>;
   setModel(sessionId: string, model: string): void;
 };
 ```
@@ -140,7 +141,8 @@ type SessionApi = {
 - `get` は自分のセッションと子孫のみ。
 - `create` で `parentId` を指定できるのは、自身がその親を操作できる場合のみ。
 - `close` は実行中ターンとジョブを `by: "system"` で停止し、セッションを `closed` にする。
-- `listRestorable` / `restore` は `session.manage` が必要。`restore` はセッションを `restoring` にし、history-store の role API `restoreSession` を呼ぶ。
+- `delete` は `closed` のセッションだけを削除する。履歴・セッション・ジョブ結果も削除する (実装は各 store に委譲)。
+- `listRestorable` / `restore` は `session.manage` が必要。`restore` は session-store に `restoring` で作らせ、続いて history-store の role API `restoreSession` を呼ぶ。
 - `restore` はターンループを再開しない。復元前に動いていたジョブは `failed (code: "interrupted")`、未通知の完了通知は再キューに積む。
 - `create` の `autoWake` はセッション単位の上書き。省略時、最上位は config、サブエージェントは `true`。
 - `setModel` は次のターンから反映する。

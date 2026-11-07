@@ -38,6 +38,8 @@ export type Message = {
   role: MessageRole;
   blocks: Block[];
   createdAt: number;
+  /** キャンセルで途切れたアシスタントメッセージ。テキストだけを保持する。 */
+  interrupted?: boolean;
 };
 
 /** 履歴へ追記するメッセージ。id と createdAt はコアが採番する。 */

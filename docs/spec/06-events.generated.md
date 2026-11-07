@@ -46,17 +46,17 @@
 |  |  | `callId` | string | ✓ |
 |  |  | `tool` | string | ✓ |
 |  |  | `jobId` | string |  |
-| `tool.completed` | ツール実行完了。async ではジョブ終端で発行。 | `v` | 1 | ✓ |
+| `tool.completed` | ツール呼び出しがモデルに返るまで完了。async では jobId を返した時点で発行。 | `v` | 1 | ✓ |
 |  |  | `callId` | string | ✓ |
 |  |  | `tool` | string | ✓ |
 |  |  | `durationMs` | integer | ✓ |
 |  |  | `jobId` | string |  |
-| `tool.failed` | ツール実行失敗。 | `v` | 1 | ✓ |
+| `tool.failed` | ツール呼び出し自体の失敗。ジョブの失敗は job.failed。 | `v` | 1 | ✓ |
 |  |  | `callId` | string | ✓ |
 |  |  | `tool` | string | ✓ |
 |  |  | `error` | { code: string, message: string } | ✓ |
 |  |  | `durationMs` | integer |  |
-| `tool.cancelled` | ツール実行キャンセル。 | `v` | 1 | ✓ |
+| `tool.cancelled` | ツール呼び出しがモデルに返る前のキャンセル。ジョブは job.cancelled。 | `v` | 1 | ✓ |
 |  |  | `callId` | string | ✓ |
 |  |  | `tool` | string | ✓ |
 |  |  | `by` | "ai" \| "user" \| "timeout" \| "system" | ✓ |
@@ -64,17 +64,20 @@
 |  |  | `jobId` | string | ✓ |
 |  |  | `tool` | string | ✓ |
 |  |  | `callId` | string | ✓ |
-| `job.done` | 非同期ジョブ完了。 | `v` | 1 | ✓ |
+| `job.done` | 非同期ジョブ完了。callId で元の tool_call と相関する。 | `v` | 1 | ✓ |
 |  |  | `jobId` | string | ✓ |
+|  |  | `callId` | string | ✓ |
 |  |  | `tool` | string | ✓ |
 |  |  | `summary` | string | ✓ |
 |  |  | `size` | integer | ✓ |
-| `job.failed` | 非同期ジョブ失敗。 | `v` | 1 | ✓ |
+| `job.failed` | 非同期ジョブ失敗。callId で元の tool_call と相関する。 | `v` | 1 | ✓ |
 |  |  | `jobId` | string | ✓ |
+|  |  | `callId` | string | ✓ |
 |  |  | `tool` | string | ✓ |
 |  |  | `error` | { code: string, message: string } | ✓ |
 | `job.cancelled` | 非同期ジョブキャンセル。by に主体を記録。 | `v` | 1 | ✓ |
 |  |  | `jobId` | string | ✓ |
+|  |  | `callId` | string | ✓ |
 |  |  | `by` | "ai" \| "user" \| "timeout" \| "system" | ✓ |
 |  |  | `reason` | string |  |
 | `job.notified` | 完了通知を履歴へ追記した。 | `v` | 1 | ✓ |
@@ -127,6 +130,7 @@
 | `permission.denied` | 権限を拒否した。 | `v` | 1 | ✓ |
 |  |  | `module` | string | ✓ |
 |  |  | `cap` | string | ✓ |
+|  |  | `hook` | string |  |
 |  |  | `error` | { code: string, message: string } | ✓ |
 | `permission.violation` | 権限違反を検出した。 | `v` | 1 | ✓ |
 |  |  | `module` | string | ✓ |

@@ -88,13 +88,14 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 
 - `shell` ロールは 1 モジュールのみ。
 - `exec` を要求できるのは `shell` ロールを持つモジュールだけ。それ以外が要求したらロード拒否。
-- モードは `full` / `whitelist`。ホワイトリスト判定と承認は `tool.before` フックで行う。
+- モードは `full` / `whitelist`。ホワイトリスト判定と承認は `tool.before` フックで行い、そのモジュールは `tool.intercept` を要求する。
 
 ### 2.3 history-store
 
 - 実行中の履歴の正はコアのメモリ。history-store は `message.appended` を購読して書き出す投影 (projection)。
 - 復元時は `ctx.history.restore(sessionId, messages)` でコアへ戻す。`history.restore` 権限が必要。
 - コアが単体で起動できるため、history-store は必須ではない。永続化が必要な構成で追加する。
+- 復元を行う場合、history-store は session-store を `requires` に入れる (D44)。session-store が `restoring` でセッションを作り、history-store が履歴を入れる。
 
 ### 2.4 compactor
 
@@ -122,6 +123,7 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 | `agent.spawn` | `ctx.agent.spawn` | 任意 |
 | `agent.message` | `ctx.agent.message` | 任意 |
 | `tool.register` | `ctx.tools.register` | ツール提供モジュール |
+| `tool.intercept` | `tool.before` フックの登録 | shell の承認など |
 | `module.talk:<name>` | `ctx.modules.call(name, ...)` | `talksTo` に含む相手 |
 
 - `ctx` は呼び出しのたびに権限を検査する。未承認なら `permission.denied` を発行し、例外を返す。
@@ -149,6 +151,7 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 - 要求ロールと排他チェック結果
 - 要求権限の一覧 (引数付き)
 - `critical` の有無
+- 重い権限 (`tool.intercept`、`exec`、`history.rewrite` など) の明示
 - 危険な組み合わせの警告
 - 「fs / net / env / exec はまだ強制されない」旨
 
@@ -177,6 +180,7 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 - `fs.write` + `net`
 - `env` + `net`
 - `exec` (フルアクセス) + `history.rewrite`
+- `tool.intercept` + `history.read` (全ツールの引数と会話の同時観測)
 
 ## 5. モジュール間通信
 

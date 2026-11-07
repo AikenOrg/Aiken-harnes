@@ -34,7 +34,8 @@
     "autoWake": false,
     "maxAutoWakeStreak": 10,
     "maxSummaryChars": 200,
-    "maxNotificationChars": 2000
+    "maxNotificationChars": 2000,
+    "resultTtlDays": 30
   },
   "log": { "level": "info", "file": "./data/harness.log" },
   "dataDir": "./data",
@@ -132,11 +133,12 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 | `maxAutoWakeStreak` | `10` | 連続して自動で起こす回数の上限 |
 | `maxSummaryChars` | `200` | summary の上限。設定できる最大は 500 |
 | `maxNotificationChars` | `2000` | 1 回の通知メッセージ全体の上限 |
+| `resultTtlDays` | `30` | 終端かつ通知済みの結果を掃除するまでの日数 |
 
 - ツールの `timeoutMs` が `maxTimeoutMs` を超える場合は切り詰める。
 - 同時実行数を超えた新規 async ジョブは `too_many_jobs` で即座に失敗させる。エラーに実行中のジョブ ID を載せる。
 - `summary` はコードポイント数で切り詰め、切り詰めた印を付ける。`size` は元のサイズを保持する。
-- 通知全体が `maxNotificationChars` を超えたら、超えた分を `ほか N 件` に置き換える。AI は `read_result(id)` で取得する。
+- 通知全体が `maxNotificationChars` を超えたら、超えた分を `ほか N 件: id1, id2, ...` (最大 20 件) に置き換える。AI は `read_result(id)` か `list_jobs` で取得する。
 - `autoWake` はセッション単位で上書きできる (`agent.spawn` の引数)。
 
 ## 7. `restore`

@@ -5,6 +5,7 @@ import {
   type NotificationBlock,
   EXCLUSIVE_ROLES,
   addUsage,
+  makeEventId,
   configSchema,
   type CoreEvent,
   type JobLimitError,
@@ -17,19 +18,21 @@ import {
 describe("protocol", () => {
   test("event envelope carries seq and versioned payload", () => {
     const event: CoreEvent<"job.cancelled"> = {
-      id: "evt_42",
+      id: "evt_b00t_42",
       seq: 42,
       ts: 1_700_000_000_000,
       type: "job.cancelled",
       source: "core",
       sessionId: "ses_1",
-      payload: { v: 1, jobId: "job_1", by: "user" },
+      payload: { v: 1, jobId: "job_1", callId: "call_1", by: "user" },
     };
 
     expect(event.seq).toBe(42);
     expect(event.payload.v).toBe(1);
     expect(event.payload.by).toBe("user");
     expect(event.sessionId).toBe("ses_1");
+    expect(event.id).toBe("evt_b00t_42");
+    expect(makeEventId("b00t", 42)).toBe(event.id);
   });
 
   test("event schemas reject missing version and malformed errors", () => {
@@ -38,12 +41,13 @@ describe("protocol", () => {
       eventSchemas["job.failed"].safeParse({
         v: 1,
         jobId: "j",
+        callId: "c",
         tool: "shell",
         error: { code: "module_died", message: "boom" },
       }).success,
     ).toBe(true);
     expect(
-      eventSchemas["job.failed"].safeParse({ v: 1, jobId: "j", tool: "shell", error: "boom" }).success,
+      eventSchemas["job.failed"].safeParse({ v: 1, jobId: "j", callId: "c", tool: "shell", error: "boom" }).success,
     ).toBe(false);
   });
 

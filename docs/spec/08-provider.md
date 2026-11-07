@@ -49,6 +49,8 @@ type Message = {
   role: Role;
   blocks: Block[];
   createdAt: number;
+  /** キャンセルで途切れたアシスタントメッセージ。テキストだけを保持する。 */
+  interrupted?: boolean;
 };
 
 type Block =
@@ -78,7 +80,7 @@ type Block =
 | `error` | `model.failed`。`critical` なら停止 |
 
 - ストリームが `stop` を返さずに終了した場合は `stop.reason = "error"` とみなす。
-- `signal.aborted` になったら、プロバイダーは速やかに反復を終了する。コアは `turn.ended` の `reason: "cancelled"` を記録し、部分応答は破棄する (TBD: 部分応答の保存)。
+- `signal.aborted` になったら、プロバイダーは速やかに反復を終了する。コアは `turn.ended` の `reason: "cancelled"` を記録し、生成済みテキストを `interrupted: true` で履歴に残す。途中の `tool_call` は捨てる。
 
 ## 4. tool_call の検証
 

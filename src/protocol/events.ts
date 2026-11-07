@@ -133,6 +133,7 @@ export const eventSchemas = {
   "job.done": z.object({
     v,
     jobId: z.string(),
+    callId: z.string(),
     tool: z.string(),
     summary: z.string(),
     size: z.number().int().nonnegative(),
@@ -140,12 +141,14 @@ export const eventSchemas = {
   "job.failed": z.object({
     v,
     jobId: z.string(),
+    callId: z.string(),
     tool: z.string(),
     error: errorSchema,
   }),
   "job.cancelled": z.object({
     v,
     jobId: z.string(),
+    callId: z.string(),
     by: cancelBySchema,
     reason: z.string().optional(),
   }),
@@ -234,6 +237,7 @@ export const eventSchemas = {
     v,
     module: z.string(),
     cap: z.string(),
+    hook: z.string().optional(),
     error: errorSchema,
   }),
   "permission.violation": z.object({
@@ -279,12 +283,12 @@ export const EVENT_DESCRIPTIONS = {
   "model.failed": "モデル呼び出しの失敗。",
   "tool.requested": "ツール呼び出しの要求。引数は tool.before フックで扱う。",
   "tool.started": "ツール実行開始。async ではジョブ ID を持つ。",
-  "tool.completed": "ツール実行完了。async ではジョブ終端で発行。",
-  "tool.failed": "ツール実行失敗。",
-  "tool.cancelled": "ツール実行キャンセル。",
+  "tool.completed": "ツール呼び出しがモデルに返るまで完了。async では jobId を返した時点で発行。",
+  "tool.failed": "ツール呼び出し自体の失敗。ジョブの失敗は job.failed。",
+  "tool.cancelled": "ツール呼び出しがモデルに返る前のキャンセル。ジョブは job.cancelled。",
   "job.running": "非同期ジョブ開始。",
-  "job.done": "非同期ジョブ完了。",
-  "job.failed": "非同期ジョブ失敗。",
+  "job.done": "非同期ジョブ完了。callId で元の tool_call と相関する。",
+  "job.failed": "非同期ジョブ失敗。callId で元の tool_call と相関する。",
   "job.cancelled": "非同期ジョブキャンセル。by に主体を記録。",
   "job.notified": "完了通知を履歴へ追記した。",
   "message.appended": "履歴へメッセージを追記した。本文は messageId で参照する。",
@@ -308,6 +312,7 @@ export const EVENT_DESCRIPTIONS = {
 
 /**
  * 共通イベントエンベロープ。
+ * id は `evt_<bootId>_<seq>`。bootId は起動ごとにランダムな短い文字列。
  * seq はコアだけが採番する。ペイロードに秘密情報やプロンプト本文を載せない。
  */
 export type EventEnvelope<TType extends string = string, TPayload = unknown> = {
@@ -326,3 +331,10 @@ export type CoreEvent<TType extends CoreEventType = CoreEventType> = EventEnvelo
   TType,
   EventPayload<TType>
 >;
+
+/** 起動ごとの bootId と seq からイベント ID を作る。 */
+export function makeEventId(bootId: string, seq: number): string {
+  if (bootId.length === 0) throw new Error("bootId must not be empty");
+  if (!Number.isInteger(seq) || seq < 0) throw new Error("seq must be a non-negative integer");
+  return `evt_${bootId}_${seq}`;
+}

@@ -4,7 +4,7 @@
 
 ```ts
 type EventEnvelope<TType extends string = string, TPayload = unknown> = {
-  id: string;          // 一意 (例: evt_<seq>)
+  id: string;          // 一意 (例: evt_<bootId>_<seq>)
   seq: number;         // コア内で単調増加
   ts: number;          // epoch ms
   type: TType;         // 例: "tool.completed"
@@ -15,7 +15,7 @@ type EventEnvelope<TType extends string = string, TPayload = unknown> = {
 ```
 
 - `seq` はコアが採番する。モジュールは採番しない。
-- `id` は `evt_<seq>` 形式。外部に保存しても衝突しない。
+- `id` は `evt_<bootId>_<seq>` 形式。`bootId` は起動ごとにランダムな短い文字列、`seq` はその起動内で単調増加。再起動してもログ上で衝突しない。
 - `sessionId` はセッションに紐づくイベントだけに付ける。
 - ペイロードに秘密情報・API キー・プロンプト本文を含めない。
 
@@ -65,8 +65,9 @@ type EventEnvelope<TType extends string = string, TPayload = unknown> = {
 
 ### 4.4 ツール / ジョブ
 
-- `tool.requested` → `tool.started` → (async なら `job.running`) → `tool.completed` / `tool.failed` / `tool.cancelled`。
-- async ツールの `tool.completed` は**ジョブの終端**で発行する。`tool.started` は受付時点。
+- `tool.requested` → `tool.started` → `tool.completed` / `tool.failed` / `tool.cancelled`。これは「ツール呼び出しがモデルに返るまで」のライフサイクル。
+- async ツールの `tool.completed` は **jobId を返した時点**で発行し、payload に `jobId` を含める。ジョブの終端では `tool.*` を発行しない。
+- `job.done` / `job.failed` / `job.cancelled` は `callId` を持ち、元の tool_call と相関する。
 - `job.done` / `job.failed` / `job.cancelled` はジョブの状態遷移。`job.notified` は通知を履歴へ追記したときに発行する。
 - `job.cancelled` は必ず `by` を持つ。
 
@@ -102,13 +103,13 @@ tool.completed
 tool.requested          # shell (async)
 tool.started
 job.running
+tool.completed          # jobId を返した時点
 message.appended (assistant: text + tool_call)
 # モデルは { jobId } を受け取り、次のループで wait を呼ぶ
 model.requested
 tool.requested          # wait (sync)
 tool.started
 job.done                # 待機中にジョブが完了
-tool.completed          # async ツールの終端
 tool.completed          # wait 自身
 message.appended (notification: 完了順の配列)
 job.notified            # 通知したジョブごと

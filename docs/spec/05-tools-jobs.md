@@ -57,13 +57,15 @@ model が async ツールを呼ぶ
   -> tool.started
   -> job.running
   -> handler を開始 (AbortSignal と jobId を渡す)
+  -> tool.completed { jobId }   # 呼び出しがモデルに返る時点
   -> モデルには { jobId } を tool_result として返す
   ...
-  -> 終端: job.done + tool.completed
-           job.failed + tool.failed
-           job.cancelled + tool.cancelled
+  -> 終端は job.done / job.failed / job.cancelled のみ
 ```
 
+- `tool.*` は「ツール呼び出しがモデルに返るまで」のライフサイクル。
+- `job.*` は「非同期ジョブの実行」のライフサイクル。終端イベントは `job.*` だけに出す。
+- 相関は `job.*` の `callId` で取る。`job.done` / `job.failed` / `job.cancelled` は `callId` を必ず持つ。
 - ジョブ ID はコアが発行する。モジュールは ID を生成しない。
 - `ownerSessionId` はジョブを起動したセッション。キャンセル範囲の判定に使う。
 - 1 つの `tool_call` に対して 1 つのジョブ。
@@ -91,6 +93,7 @@ type Job = {
 ```
 
 - 遷移は `running -> done | failed | cancelled` の一方向のみ。終端状態から戻らない。
+- 状態は `running / done / failed / cancelled` の 4 つのまま。復元時に running だったものは `failed (code: "interrupted")` にする。
 - 終端後の完了報告・キャンセルは無視する。エラーにしない (現在の状態を返す)。
 
 ### 3.3 完了の契約
@@ -108,7 +111,7 @@ ctx.jobs.fail(jobId, { code: string, message: string });
 - 2 回目以降の呼び出しは無視し、診断ログに残す。
 - ハンドラが例外を投げた場合、コアは `fail({ code: "internal", message })` として扱う。
 - ハンドラが何も呼ばずに終了した場合、ジョブは `running` のまま。タイムアウトで `cancelled (by: "timeout")` になる。
-- コアは完了を受けると、結果を result-store に保存し、状態を更新し、イベントを発行し、通知をキューに積む。
+- コアは完了を受けると、結果を result-store に保存し、状態を更新し、`job.done` / `job.failed` を発行し、通知をキューに積む。`tool.*` は発行しない。
 
 ### 3.4 タイムアウト
 
@@ -121,7 +124,7 @@ ctx.jobs.fail(jobId, { code: string, message: string });
 
 - ジョブのタイムアウトはツールごとの `timeoutMs`。未指定なら `jobs.defaultTimeoutMs`。
 - `jobs.maxTimeoutMs` を上限とし、超える値は切り詰める。
-- タイムアウト時、コアは `AbortSignal` を abort し、`job.cancelled` と `tool.cancelled` を発行する。以後の結果は破棄する。
+- タイムアウト時、コアは `AbortSignal` を abort し、`job.cancelled` を発行する。`tool.cancelled` は呼び出しがモデルに返る前のキャンセルに限る。以後の結果は破棄する。
 
 ### 3.5 同時実行数の上限
 
@@ -153,7 +156,7 @@ ctx.jobs.fail(jobId, { code: string, message: string });
 
 - 次のモデル呼び出しの**直前**に、キューにある通知を**完了順の配列**として 1 つのメッセージにまとめ、履歴の末尾へ追記する。
 - 1 つの通知はちょうど 1 回だけ届く。`job.notified` は通知したジョブごとに発行する。
-- 1 回の通知メッセージ全体にも上限 (既定 2000 文字) を設ける。超えた分は `ほか N 件` とだけ書き、AI に `read_result(id)` で取得させる。省略したジョブの ID の扱いは D49 を参照。
+- 1 回の通知メッセージ全体にも上限 (既定 2000 文字) を設ける。超えた分は `ほか N 件: id1, id2, ...` と書き、ID は最大 20 件まで列挙する。AI は `read_result(id)` か `list_jobs` で続きを取得する。
 - 通知ブロック:
 
 ```ts
@@ -184,7 +187,7 @@ type NotificationBlock = {
 
 ## 6. コア提供ツール
 
-ジョブ ID をコアが持つため、次の 3 つはコアが常に登録する。無効化できない。
+ジョブ ID をコアが持つため、次の 4 つはコアが常に登録する。無効化できない。
 
 ### `wait(ids, timeoutMs)`
 
@@ -201,10 +204,19 @@ type NotificationBlock = {
 - 終端済みのジョブに cancel してもエラーにせず、現在の状態を返す。
 - ユーザーによるキャンセルは `user.cancel` 経由で、範囲制限なく行える。
 
-### `read_result(id)`
+### `read_result(id, offset?, limit?)`
 
 - 結果本体を返す。取得可能なのは自分のセッションと子孫のジョブのみ。
-- 大きすぎる結果は切り詰め、`size` と切り詰めた旨を返す。**TBD**: offset/limit 引数。
+- `offset` は文字位置、`limit` は既定 20,000 文字。
+- 返り値は `{ content, truncated, nextOffset }`。続きは `nextOffset` を `offset` に渡して読む。
+- `nextOffset` は末尾まで読んだとき省略する。
+
+### `list_jobs(status?)`
+
+- 自分のセッションと子孫が起動したジョブを返す。キャンセルと同じ範囲制限。
+- `status` は `running / done / failed / cancelled`。省略時はすべて。
+- 返り値は `{ id, status, tool, summary?, size?, callId }` の配列。
+- compaction や復元の後で AI がジョブを見失ったときにも使う。
 
 ## 7. キャンセル
 
@@ -225,8 +237,9 @@ type NotificationBlock = {
 4. モジュールが中断できなくても、以後の結果は破棄する。
 5. 履歴へキャンセル通知を追記する (次ターン直前、または autoWake)。
 
-- `tool.cancelled` も同じ `by` で発行する。
+- 非同期ジョブのキャンセルは `job.cancelled` のみ。`tool.cancelled` はツール呼び出しがモデルに返る前のキャンセルに限る。
 - キャンセル済みジョブへの `wait` は即座に `cancelled` を返す。
+- モデルストリームのキャンセル時は、生成済みのテキストを履歴に残し、`interrupted: true` を付ける。途中の `tool_call` は結果と対にならないため捨てる。
 
 ### 7.3 異常時
 
@@ -247,5 +260,5 @@ type NotificationBlock = {
 
 - `tool.before` は同期・非同期の両方に適用する。
 - フックは `allow` / `deny` / `args` の書き換えを返せる。
-- 拒否時は `permission.denied` を発行し、モデルには拒否理由を `tool_result` として返す。
+- 拒否時は `permission.denied` ( `hook: "tool.before"` と理由) を発行し、続けて `tool.failed (code: "denied")` を発行する。モデルには拒否理由を `tool_result` として返す。返さないと AI が同じ呼び出しを繰り返す。
 - shell のホワイトリスト判定と個別承認はこのフックで行う。

@@ -39,7 +39,8 @@
     "autoWake": false,
     "maxAutoWakeStreak": 10,
     "maxSummaryChars": 200,
-    "maxNotificationChars": 2000
+    "maxNotificationChars": 2000,
+    "resultTtlDays": 30
   },
   "log": {
     "level": "info"

@@ -50,6 +50,7 @@ export type SessionApi = {
   /** 保存済みセッションを restoring 状態で開き、履歴の復元を開始する。 */
   restore(sessionId: string): Promise<Session>;
   close(sessionId: string): Promise<void>;
+  delete(sessionId: string): Promise<void>;
   setModel(sessionId: string, model: string): void;
 };
 

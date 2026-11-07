@@ -55,11 +55,17 @@ created -> restoring -> idle
 
 fork は `session.manage` を必要とする。spawn は上記の 2 権限を必要とする。
 
-### 1.5 履歴との関係
+### 1.5 キャンセル時の履歴
+
+- モデルストリームのキャンセル時、生成済みのテキストは履歴に残し、アシスタントメッセージに `interrupted: true` を付ける。
+- 途中の `tool_call` は捨てる。`tool_result` と対にならない tool_call は API 上不正な会話になるため。
+- ユーザーが「続けて」と言ったとき、AI が何を言いかけていたか分かるようにする。
+
+### 1.6 履歴との関係
 
 - 実行中の履歴はコアのメモリが唯一の正。ループは毎ターンそこから読む。
 - `history-store` は `message.appended` を購読して書き出す投影であり、コアの履歴を置き換えない。
-- 復元は UI の明示要求 (`ctx.session.restore`) で始まる。コアはセッションを `restoring` にし、履歴が空の状態で `ctx.history.restore(sessionId, messages)` を受け付ける。
+- 復元は UI の明示要求 (`ctx.session.restore`) で始まる。session-store がセッションを `restoring` で作り、履歴が空の状態で `ctx.history.restore(sessionId, messages)` を受け付ける。
 - `ctx.history.restore` は `history.restore` 権限と `history-store` ロールを持つモジュールだけが呼べる。稼働中のセッションは上書きできない。
 - `config.restore: "last"` のときだけ、起動時に直前のセッションを自動で開く。既定は `"none"`。
 - 復元してもターンループは再開しない。ユーザー入力か、保留中の通知による autoWake を待つ。

@@ -1,16 +1,30 @@
 import type { ToolDeclaration } from "./tools.ts";
 
-/** モジュールのロール。排他・非排他の区別はコアが検査する。 */
+/**
+ * モジュールのロール。
+ * 排他ロール: history-store / session-store / result-store / compactor / shell
+ * 複数可: provider / ui
+ * 1 つのモジュールが複数ロールを兼ねてよい。
+ */
 export type ModuleRole =
+  | "provider"
   | "history-store"
   | "session-store"
+  | "result-store"
   | "compactor"
-  | "log-store"
-  | "provider"
   | "shell"
-  | "tools"
-  | "ui"
-  | "observer";
+  | "ui";
+
+/** 排他ロール。同時に 1 モジュールだけが持てる。 */
+export const EXCLUSIVE_ROLES = [
+  "history-store",
+  "session-store",
+  "result-store",
+  "compactor",
+  "shell",
+] as const satisfies readonly ModuleRole[];
+
+export type ExclusiveRole = (typeof EXCLUSIVE_ROLES)[number];
 
 /** コア API 系の権限。ctx で実効的に強制される。 */
 export type CoreCapability =
@@ -47,7 +61,10 @@ export type PermissionRequest = {
   allow?: readonly string[];
 };
 
-/** モジュール manifest。 */
+/**
+ * モジュール manifest。コードとは別の manifest.json に置く。
+ * コアはコードを実行する前にこれを読み、権限承認を行う。
+ */
 export type ModuleManifest = {
   name: string;
   version: string;
@@ -56,6 +73,8 @@ export type ModuleManifest = {
   critical: boolean;
   /** 現状は "inprocess" のみ。 */
   runner: "inprocess";
+  /** モジュールディレクトリからのエントリポイント。既定は "index.js"。 */
+  main?: string;
   requires?: readonly string[];
   talksTo?: readonly string[];
   subscribes?: readonly string[];

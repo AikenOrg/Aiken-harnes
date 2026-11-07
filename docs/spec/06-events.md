@@ -3,140 +3,91 @@
 ## 1. エンベロープ
 
 ```ts
-type CoreEvent<T extends string = string, P = unknown> = {
+type EventEnvelope<TType extends string = string, TPayload = unknown> = {
   id: string;          // 一意 (例: evt_<seq>)
   seq: number;         // コア内で単調増加
   ts: number;          // epoch ms
-  type: T;             // 例: "tool.completed"
+  type: TType;         // 例: "tool.completed"
   source: string;      // "core" またはモジュール名
   sessionId?: string;  // セッションに紐づく場合のみ
-  payload: P;
+  payload: TPayload;
 };
 ```
 
 - `seq` はコアが採番する。モジュールは採番しない。
-- `id` は `seq` から導出してよいが、外部に保存しても衝突しない形式にする。
-- `sessionId` は省略可能。モジュール全体のイベント (`module.loaded` など) には付けない。
+- `id` は `evt_<seq>` 形式。外部に保存しても衝突しない。
+- `sessionId` はセッションに紐づくイベントだけに付ける。
 - ペイロードに秘密情報・API キー・プロンプト本文を含めない。
 
-## 2. 配信
+## 2. ペイロードの原則
+
+ペイロードは **`src/protocol/events.ts` の zod スキーマが唯一の正**。TypeScript 型はそこから導出し、この文書の一覧も `bun run docs:gen` で生成する。
+
+1. **本文を持たず、ID で参照する。**
+   - `message.appended` は `{ v, messageId }` のみ。本文は `ctx.history.get(sessionId, messageId)` で取得する。
+   - `history.rewritten` は件数のみ。内容は `ctx.history.read` で取得する。
+   - `agent.message` は `messageId` のみ。
+   - `tool.requested` は引数を持たない。承認に必要な引数は `tool.before` フックが受け取る。
+   - ジョブ結果はイベントに載せず、`read_result(jobId)` で取得する。
+2. **全ペイロードに `v: 1` を必須で付ける。** 将来の破壊的変更に備える。加算的な変更は `v: 1` のまま、削除・型変更は版を上げる。
+3. **エラーは `{ code, message }` に統一する。** `model.failed`、`job.failed`、`tool.failed`、`module.failed`、`permission.*` が該当する。
+4. **大きなデータを載せない。** 例外は `model.delta` の差分テキストと `user.message` の入力本文のみ。どちらも永続的な本文の参照元ではない。
+
+フィールドの完全な一覧: **[06-events.generated.md](06-events.generated.md)** (自動生成)。
+
+## 3. 配信
 
 - 購読は型名またはワイルドカード (`tool.*`) で行う。manifest の `subscribes` と一致しない購読は拒否する。
 - 配信順は発行順。`seq` の昇順で届く。
 - 購読者の例外は隔離する。他の購読者への配信は続行し、`ctx.log` に記録する。
 - 購読ハンドラは同期実行を基本とし、重い処理は自分でキューへ逃がす。コアのターンをブロックしない。
 - `model.delta` は既定で購読されない。UI がストリーミング表示を望む場合だけ明示購読する。
+- モジュールはコア予約イベントを発行できない。独自イベントは `module.<name>.<event>` のみ。
 
-## 3. イベント一覧
+## 4. イベントの意味
 
-### 3.1 ユーザー入力
+### 4.1 ユーザー入力
 
-| type | payload |
-|---|---|
-| `user.message` | `{ text: string }` |
-| `user.cancel` | `{ reason?: string }` |
+- `user.message`: ユーザー入力。コアは履歴へ追記してターンを開始する。
+- `user.cancel`: ユーザーによるキャンセル。実行中ターンとジョブを `by: "user"` で止める。
 
-### 3.2 セッション
+### 4.2 セッション / ターン
 
-| type | payload |
-|---|---|
-| `session.created` | `{ parentId?: string, model: string }` |
-| `session.closed` | `{ reason?: string }` |
-| `session.forked` | `{ fromSessionId: string }` |
+- `session.created` / `session.closed` / `session.forked`: コアがセッション状態を変更した。
+- `turn.started` / `turn.ended`: 1 ターンの開始と終了。`turnId` で対応付ける。
 
-### 3.3 ターン
+### 4.3 モデル
 
-| type | payload |
-|---|---|
-| `turn.started` | `{ turnId: string }` |
-| `turn.ended` | `{ turnId: string, reason: "completed" | "cancelled" | "error" }` |
+- `model.requested`: 送信直前。`promptHash` は static 部分のハッシュ。
+- `model.delta`: ストリーミング差分。購読は任意。
+- `model.completed`: `usage` と `stop` を含む。
+- `model.failed`: `error: { code, message }`。
 
-### 3.4 モデル
+### 4.4 ツール / ジョブ
 
-| type | payload | 備考 |
-|---|---|---|
-| `model.requested` | `{ model, messageCount, toolCount, promptHash }` | 送信直前 |
-| `model.delta` | `{ text: string }` | 既定は購読しない |
-| `model.completed` | `{ stopReason, usage?: { input, output, cacheRead? }, durationMs }` | |
-| `model.failed` | `{ error: string, retryable?: boolean }` | |
+- `tool.requested` → `tool.started` → (async なら `job.running`) → `tool.completed` / `tool.failed` / `tool.cancelled`。
+- async ツールの `tool.completed` は**ジョブの終端**で発行する。`tool.started` は受付時点。
+- `job.done` / `job.failed` / `job.cancelled` はジョブの状態遷移。`job.notified` は通知を履歴へ追記したときに発行する。
+- `job.cancelled` は必ず `by` を持つ。
 
-### 3.5 ツール
+### 4.5 履歴
 
-| type | payload |
-|---|---|
-| `tool.requested` | `{ toolCallId, name, args, mode }` |
-| `tool.started` | `{ toolCallId, name, jobId?: string }` |
-| `tool.completed` | `{ toolCallId, name, jobId?: string, size?: number, durationMs }` |
-| `tool.failed` | `{ toolCallId, name, error: string }` |
-| `tool.cancelled` | `{ toolCallId, name, by: CancelBy }` |
+- `message.appended`: 追記されたメッセージの `messageId` のみ。通知の一括追記でも 1 メッセージにつき 1 回。
+- `history.rewritten`: コアが履歴を書き換えた。永続化モジュールはこれを契機に保存内容を置き換える。
 
-### 3.6 ジョブ
+### 4.6 プロンプト / compaction
 
-| type | payload |
-|---|---|
-| `job.running` | `{ jobId, name, toolCallId }` |
-| `job.done` | `{ jobId, summary, size }` |
-| `job.failed` | `{ jobId, error: string }` |
-| `job.cancelled` | `{ jobId, by: CancelBy, reason?: string }` |
-| `job.notified` | `{ jobId }` |
+- `prompt.assembled`: 結合済みプロンプトの断片 ID、キャッシュ境界、static ハッシュ。本文は載せない。
+- `compaction.requested` / `compaction.completed`: compaction の要求と完了。
 
-`CancelBy = "ai" | "user" | "timeout" | "system"`
+### 4.7 エージェント / モジュール / 権限 / コア
 
-### 3.7 履歴
+- `agent.spawned` / `agent.message` / `agent.cancelled`: サブエージェントの操作。本文は `messageId` 参照。
+- `module.loaded` / `module.failed` / `module.disabled`: モジュールのライフサイクル。
+- `permission.requested` / `granted` / `denied` / `violation`: 承認と強制の記録。
+- `core.started` / `core.stopping`: コアの起動と停止。
 
-| type | payload |
-|---|---|
-| `message.appended` | `{ messageId, role, blockTypes: string[], atTail: boolean }` |
-| `history.rewritten` | `{ reason, beforeCount, afterCount }` |
-
-### 3.8 プロンプト
-
-| type | payload |
-|---|---|
-| `prompt.assembled` | `{ segmentIds: string[], stabilities: string[], cacheBoundary, hash }` |
-
-本文は載せない。デバッグ用の全文は明示的な設定でのみ別途保存する。
-
-### 3.9 compaction
-
-| type | payload |
-|---|---|
-| `compaction.requested` | `{ reason, tokenEstimate? }` |
-| `compaction.completed` | `{ beforeCount, afterCount }` |
-
-### 3.10 エージェント
-
-| type | payload |
-|---|---|
-| `agent.spawned` | `{ childSessionId, parentSessionId, model }` |
-| `agent.message` | `{ from: string, to: string, text: string }` |
-| `agent.cancelled` | `{ sessionId, by: CancelBy }` |
-
-### 3.11 モジュール
-
-| type | payload |
-|---|---|
-| `module.loaded` | `{ name, version, roles, critical }` |
-| `module.failed` | `{ name, error: string }` |
-| `module.disabled` | `{ name, reason: string }` |
-
-### 3.12 権限
-
-| type | payload |
-|---|---|
-| `permission.requested` | `{ module, permissions, warnings: string[] }` |
-| `permission.granted` | `{ module, permissions }` |
-| `permission.denied` | `{ module, cap, reason }` |
-| `permission.violation` | `{ module, cap, reason }` |
-
-### 3.13 コア
-
-| type | payload |
-|---|---|
-| `core.started` | `{ version, modules: string[] }` |
-| `core.stopping` | `{ reason }` |
-
-## 4. ターン内の標準的な並び
+## 5. 標準的な並び (非同期ジョブ)
 
 ```text
 user.message
@@ -159,17 +110,27 @@ tool.started
 job.done                # 待機中にジョブが完了
 tool.completed          # async ツールの終端
 tool.completed          # wait 自身
-message.appended (notification / atTail)
-job.notified
+message.appended (notification: 完了順の配列)
+job.notified            # 通知したジョブごと
 model.requested
 ...
 turn.ended
 ```
 
-同期ツールの `tool.completed` は実行直後、非同期ツールの `tool.completed` はジョブの終端で発行する。
+- 通知は次のモデル呼び出しの直前にまとめて 1 メッセージで追記する。
+- `wait` の戻り値で受け取ったジョブは通知しない (二重配信の防止)。
+- 通知の宛先セッションがアイドルの場合、`jobs.autoWake` が `true` なら新しいターンを開始し、`false` なら次のユーザー入力を待つ。
 
-## 5. 保存と再生
+## 6. バージョニング
 
-- イベントは履歴そのものではない。履歴モジュールが `message.appended` を購読して保存する構成と、コアが `ctx.history` 経由で直接書く構成のどちらもあり得る。
-- 必須構成では、コアが `ctx.history` を呼び、history-store が保存し、`message.appended` を発行する (二重保存を避ける)。
-- イベントログの永続化は `log-store` モジュールの任意機能とする。
+- 全ペイロードの `v` は `CORE_EVENT_VERSION` (現在 `1`)。
+- フィールド追加は `v: 1` のまま。消費者は未知フィールドを無視する。
+- フィールド削除・意味変更・型変更は `v` を上げる。購読側は `v` で分岐する。
+- イベント型の追加も `v: 1` でよい (購読側は未知型を無視する)。
+
+## 7. 保存と再生
+
+- イベントは履歴そのものではない。実行中の履歴の正はコアのメモリにある。
+- `history-store` は `message.appended` を購読して永続化する。`messageId` から本文を引くために `history.read` 権限を使う。
+- `compactor` の書き換えはコアの `ctx.history.rewrite` を通り、`history.rewritten` を契機に `history-store` が保存内容を置き換える。
+- イベントログの永続化は任意モジュールの機能とする (コアはイベントを発行するだけ)。

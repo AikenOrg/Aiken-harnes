@@ -12,7 +12,8 @@
 | 3 | [spec/03-session-prompt.md](spec/03-session-prompt.md) | セッション、サブエージェント、プロンプト断片 |
 | 4 | [spec/04-modules-roles-permissions.md](spec/04-modules-roles-permissions.md) | manifest、ロール、権限、承認 |
 | 5 | [spec/05-tools-jobs.md](spec/05-tools-jobs.md) | ツール、非同期ジョブ、通知、キャンセル |
-| 6 | [spec/06-events.md](spec/06-events.md) | イベントエンベロープと全イベント |
+| 6 | [spec/06-events.md](spec/06-events.md) | イベントエンベロープ、ペイロード原則、配信 |
+| 6g | [spec/06-events.generated.md](spec/06-events.generated.md) | 全ペイロードの生成一覧 (events.ts が正) |
 | 7 | [spec/07-hooks.md](spec/07-hooks.md) | 3 種類のフック |
 | 8 | [spec/08-provider.md](spec/08-provider.md) | Provider インターフェイスとメッセージ型 |
 | 9 | [spec/09-ctx-api.md](spec/09-ctx-api.md) | ctx API と権限強制の範囲 |

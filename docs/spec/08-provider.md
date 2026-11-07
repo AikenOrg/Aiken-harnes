@@ -32,8 +32,10 @@ type ModelEvent =
   | { type: "stop"; reason: "end" | "tool_use" | "length" | "error" };
 ```
 
-- プロバイダーはモジュール (`roles: ["provider"]`) として実装する。
-- `models()` はロード時に呼ばれ、コアがモデル→プロバイダーの対応表を作る。同一モデル ID の重複は起動失敗。
+- プロバイダーはモジュール (`roles: ["provider"]`) として実装する。複数ロードできる。
+- モデル ID は `"<prefix>/<model>"` 形式。接頭辞ごとに担当プロバイダーは 1 つ。同じ接頭辞の重複は起動失敗。
+- provider は最低 1 つ必要。無ければ起動失敗。
+- `models()` はロード時に呼ばれ、コアがモデル→プロバイダーの対応表を作る。
 - `stream()` はコアだけが呼ぶ。モジュール同士が直接呼ぶことはない。
 - コアはストリームの開始・中継・完了を管轄する。プロバイダーは `AsyncIterable` を返すだけで、履歴やイベントバスに触れない。
 
@@ -53,12 +55,12 @@ type Block =
   | { type: "text"; text: string }
   | { type: "tool_call"; id: string; name: string; args: unknown }
   | { type: "tool_result"; toolCallId: string; name: string; content: string; isError?: boolean }
-  | { type: "notification"; jobId: string; status: "done" | "failed" | "cancelled"; summary: string; size: number };
+  | { type: "notification"; entries: JobNotification[] };
 ```
 
 - 1 メッセージは複数ブロックを持つ。テキストと tool_call が同時に返る場合がある。
 - `tool_result` は対応する `tool_call` の直後に置く。プロバイダーはこの順序を前提に変換してよい。
-- `notification` はジョブ完了通知。プロバイダーは `role` と本文を自前の形式へ写像する。
+- `notification` はジョブ完了通知の配列。1 メッセージに完了順でまとめて入る。プロバイダーは `role` と本文を自前の形式へ写像する。
 - `system` は `ModelRequest.system` に分離して渡す。`messages` に system ロールを混ぜない。
 
 ## 3. ストリームの扱い

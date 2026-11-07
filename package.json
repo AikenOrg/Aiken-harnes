@@ -10,8 +10,10 @@
     "start": "bun run src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "check": "bun run typecheck && bun test && bun run docs:check",
-    "docs:check": "bun run scripts/check-docs.ts"
+    "check": "bun run typecheck && bun test && bun run docs:gen:check && bun run docs:check",
+    "docs:check": "bun run scripts/check-docs.ts",
+    "docs:gen": "bun run scripts/generate-events-doc.ts",
+    "docs:gen:check": "bun run scripts/generate-events-doc.ts --check"
   },
   "dependencies": {
     "zod": "^4.6.7"

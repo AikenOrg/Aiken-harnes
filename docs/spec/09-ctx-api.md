@@ -9,6 +9,7 @@ type ModuleContext = {
   name: string;
   bus: BusApi;
   tools: ToolApi;
+  jobs: JobsApi;
   history: HistoryApi;
   prompt: PromptApi;
   session: SessionApi;
@@ -26,6 +27,7 @@ type ModuleContext = {
 - すべての API は呼び出し時に権限を検査する。足りなければ `permission.denied` を発行して例外を返す。
 - 権限はモジュールに付与されたものだけ。セッションをまたぐ操作は、そのセッションが自分の子孫かどうかも検査する。
 - API は非同期を基本とする (`Promise`)。同期で完結するものだけ同期。
+- 履歴の権限検査はコアに一本化する。history-store は保存先であり、権限の番人ではない。
 
 ## 2. 各 API
 
@@ -58,11 +60,15 @@ type ToolApi = {
 
 ### 2.3 `ctx.history`
 
+実行中の履歴の唯一の正はコアのメモリ。`ctx.history` はそこへの窓口であり、永続化モジュールへの委譲ではない。
+
 ```ts
 type HistoryApi = {
   read(sessionId: string, opts?: { limit?: number; before?: string }): Promise<Message[]>;
+  get(sessionId: string, messageId: string): Promise<Message | undefined>;
   append(sessionId: string, message: NewMessage): Promise<Message>;
   appendBatch(sessionId: string, messages: NewMessage[]): Promise<Message[]>;
+  load(sessionId: string, messages: Message[]): Promise<void>;
   rewrite(sessionId: string, messages: Message[], reason: string): Promise<void>;
   count(sessionId: string): Promise<number>;
 };
@@ -71,15 +77,36 @@ type HistoryApi = {
 | メソッド | 必要権限 | 備考 |
 |---|---|---|
 | `read` | `history.read` | 子孫セッションも可 |
+| `get` | `history.read` | `message.appended` の ID から本文を引く |
 | `append` | `history.append` | 追記のみ。既存メッセージは変更しない |
-| `appendBatch` | `history.append` | 通知の一括追記に使う。原子的に扱う |
-| `rewrite` | `history.rewrite` | `compactor` のみ。`history.rewritten` を発行 |
+| `appendBatch` | `history.append` | 通知の一括追記。原子的に扱う |
+| `load` | `history.append` + `history-store` ロール | 復元時のみ。コアへ履歴を戻す |
+| `rewrite` | `history.rewrite` + `compactor` ロール | コアがメモリを書き換え、`history.rewritten` を発行 |
 | `count` | `history.read` | |
 
 - `read` の `limit` は末尾から。`before` はカーソル。
-- 履歴の実体は history-store モジュールが持つ。コアは委譲するだけ。
+- `append` はコアのメモリへ追記し、`message.appended` を発行する。history-store はそれを購読して保存する。
+- `load` は起動時の復元専用。セッションがアクティブなときの呼び出しは拒否する (D37)。
+- `rewrite` はコアのメモリを置換し、`history.rewritten` を発行する。永続化モジュールはこれを契機に保存内容を置き換える。
 
-### 2.4 `ctx.prompt`
+### 2.4 `ctx.jobs`
+
+非同期ツールの完了をコアへ知らせる。ジョブごとに**ちょうど 1 回**呼ぶ。
+
+```ts
+type JobsApi = {
+  done(jobId: string, input: { summary: string; result: string | Uint8Array }): void;
+  fail(jobId: string, input: { code: string; message: string }): void;
+};
+```
+
+- `summary` は必須。上限を超えたらコアが切り詰める。
+- 2 回目以降の呼び出しは無視し、診断ログに残す。
+- 存在しないジョブ ID は無視する (診断ログのみ)。
+- コアは結果を result-store に保存し、状態を更新し、イベントを発行し、通知をキューに積む。
+- ジョブ ID は `ToolContext.jobId` でハンドラに渡される。ハンドラは `ctx.jobs` と `ctx` の両方にアクセスできる。
+
+### 2.5 `ctx.prompt`
 
 ```ts
 type PromptApi = {
@@ -93,7 +120,7 @@ type PromptApi = {
 - `PromptSegmentInput` は `id` / `stability` / `priority` / `content`。`source` はコアがモジュール名から埋める。
 - static 断片の削除・上書きはできない (登録のみ)。
 
-### 2.5 `ctx.session`
+### 2.6 `ctx.session`
 
 ```ts
 type SessionApi = {
@@ -108,9 +135,10 @@ type SessionApi = {
 - `session.manage` 権限が必要。
 - `get` は自分のセッションと子孫のみ。
 - `create` で `parentId` を指定できるのは、自身がその親を操作できる場合のみ。
+- `close` は実行中ターンとジョブを `by: "system"` で停止し、セッションを `closed` にする。
 - `setModel` は次のターンから反映する。
 
-### 2.6 `ctx.agent`
+### 2.7 `ctx.agent`
 
 ```ts
 type AgentApi = {
@@ -131,18 +159,18 @@ type AgentApi = {
 - `message` は `agent.message` が必要。宛先は自分の子孫のみ。
 - `cancel` は自分の子孫のみ。実行中ターンとジョブをキャンセルする。
 
-### 2.7 `ctx.hooks`
+### 2.8 `ctx.hooks`
 
 ```ts
 type HookApi = {
-  register(hook: HookRegistration): () => void;
+  register(type: "prompt.assemble" | "tool.before" | "compaction.decide", handler): () => void;
 };
 ```
 
 - フック種別ごとの必要権限は [07-hooks.md](07-hooks.md) を参照。
 - ロード完了後の登録は、そのターンには反映しない。
 
-### 2.8 `ctx.fs` / `ctx.net` / `ctx.env` / `ctx.secrets`
+### 2.9 `ctx.fs` / `ctx.net` / `ctx.env` / `ctx.secrets`
 
 ```ts
 type FsApi = {
@@ -171,7 +199,7 @@ type SecretsApi = {
 - `ctx.net.fetch` は `hosts` の前方一致/完全一致で検査する。リダイレクト先も検査する (ベストエフォート)。
 - `ctx.secrets.get` はプロバイダーの `stream()` 実行中のみ有効。取得は監査ログに残す (値は残さない)。
 
-### 2.9 `ctx.modules`
+### 2.10 `ctx.modules`
 
 ```ts
 type ModulesApi = {
@@ -184,7 +212,7 @@ type ModulesApi = {
 - 権限は委譲されない。呼び出し先の `ctx` で再検査する。
 - 呼び出し深さに上限を設け、循環を検出する。
 
-### 2.10 `ctx.log`
+### 2.11 `ctx.log`
 
 ```ts
 type LogApi = {
@@ -197,13 +225,13 @@ type LogApi = {
 
 - コアの診断ログ。履歴のログ (会話ログ) とは別物。
 - 秘密情報は渡さない。コア側でも既知の秘密値はマスクする。
-- 出力先はコアの設定 (`log.level`, `log.file`) に従う。**TBD**: log-store モジュールとの関係。
+- 出力先はコアの設定 (`log.level`, `log.file`) に従う。
 
 ## 3. 強制の範囲
 
 | 系統 | 強制 | 備考 |
 |---|---|---|
-| コア API (history / prompt / session / agent / tool / module.talk) | 実効あり | `ctx` で検査 |
+| コア API (history / prompt / session / agent / tool / jobs / module.talk) | 実効あり | `ctx` で検査 |
 | fs / net / env / exec | 宣言と承認のみ | サンドボックスは未実装 |
 | secrets | 宣言と承認 + 呼び出しタイミング制限 | 値の漏洩防止はベストエフォート |
 

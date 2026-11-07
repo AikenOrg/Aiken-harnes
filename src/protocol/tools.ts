@@ -13,6 +13,8 @@ export type ToolSpec = {
 export type ToolDeclaration = {
   name: string;
   mode: ToolMode;
+  /** async ツールのタイムアウト。config の上限を超える値は切り詰める。 */
+  timeoutMs?: number;
 };
 
 /** ツール実行の戻り値。 */
@@ -40,5 +42,7 @@ export type ToolDefinition = {
   description: string;
   input: ZodType;
   mode: ToolMode;
-  handler: (args: unknown, ctx: ToolContext) => Promise<ToolResult> | ToolResult;
+  /** async ツールのタイムアウト。 */
+  timeoutMs?: number;
+  handler: (args: unknown, ctx: ToolContext) => Promise<ToolResult | void> | ToolResult | void;
 };

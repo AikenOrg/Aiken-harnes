@@ -1,4 +1,4 @@
-import type { TerminalJobStatus } from "./jobs.ts";
+import type { JobNotification } from "./jobs.ts";
 
 export type MessageRole = "system" | "user" | "assistant" | "tool" | "notification";
 
@@ -22,13 +22,13 @@ export type ToolResultBlock = {
   isError?: boolean;
 };
 
-/** 非同期ジョブの完了通知ブロック。 */
+/**
+ * 非同期ジョブの完了通知ブロック。
+ * 1 つのメッセージに、完了順の通知をまとめて載せる。
+ */
 export type NotificationBlock = {
   type: "notification";
-  jobId: string;
-  status: TerminalJobStatus;
-  summary: string;
-  size: number;
+  entries: JobNotification[];
 };
 
 export type Block = TextBlock | ToolCallBlock | ToolResultBlock | NotificationBlock;
@@ -40,5 +40,5 @@ export type Message = {
   createdAt: number;
 };
 
-/** 履歴へ追記するメッセージ。id と createdAt は history-store が採番する。 */
+/** 履歴へ追記するメッセージ。id と createdAt はコアが採番する。 */
 export type NewMessage = Omit<Message, "id" | "createdAt">;

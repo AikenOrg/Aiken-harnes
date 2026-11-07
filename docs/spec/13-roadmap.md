@@ -7,12 +7,13 @@
 - リポジトリ初期化、Bun + strict TypeScript、CI (typecheck + test)
 - 仕様書一式と ADR
 - 共有型 (`src/protocol`) のスケルトン
+- `events.ts` の zod スキーマと生成文書、config スキーマ
 - 完了条件: `bun run check` が通る。docs の索引が揃っている。
 
 ### M1: 最小の会話ループ
 
 - EventBus、SessionManager、PromptAssembler、TurnLoop
-- メモリ history-store (必須モジュール)
+- コアの `HistoryManager` (メモリ履歴が唯一の正)
 - フェイクプロバイダー (テスト用) + 実プロバイダー 1 つ
 - 同期ツール 1 つ (`read`)
 - 最小 UI (CLI または TUI) で 1 ターンが回る
@@ -20,15 +21,16 @@
 
 ### M2: 非同期ジョブ
 
-- JobManager、SQLite result-store
+- JobManager、`ctx.jobs.done` / `fail`、タイムアウト、同時実行数上限
+- メモリ result-store (SQLite は任意)
 - 非同期 shell ツール、AbortSignal によるキャンセル
 - `wait` / `cancel` / `read_result`
-- 通知の末尾追記と `job.notified`
+- 通知の一括末尾追記と `job.notified`、autoWake
 - 完了条件: 評価シナリオ E1〜E3 が通る。
 
 ### M3: 永続化と UI
 
-- SQLite history-store + session-store、復元
+- SQLite history-store (投影) + session-store、`ctx.history.load` による復元
 - WebUI (HTTP/WS) とイベント購読
 - ストリーミング表示 (`model.delta` の明示購読)
 - 完了条件: プロセス再起動後も履歴とセッションが復元される。
@@ -55,13 +57,14 @@
 2. モデルが `read` (sync) を呼び、結果を得る。
 3. モデルが `shell` (async) を呼び、`{ jobId }` を受け取る。
 4. モデルが `wait([jobId], 30000)` を呼ぶ。
-5. ジョブ完了後、次のモデル呼び出し直前に通知が履歴末尾へ追記される。
+5. ジョブ完了後、次のモデル呼び出し直前に通知が 1 メッセージ (完了順の配列) として履歴末尾へ追記される。
 6. モデルが `read_result(jobId)` で本文を取得し、最終応答を返す。
 
 検証:
 
 - `job.running` → `job.done` → `job.notified` の順。
-- 通知の JSON が `{id,status,summary,size}` のみ。
+- 通知の各要素が `{id,status,summary,size}` のみ。
+- `wait` で受け取ったジョブは通知されない (二重配信なし)。
 - 通知追記後も既存メッセージの ordinal が変わらない。
 - 最終応答に一覧の内容が含まれる。
 

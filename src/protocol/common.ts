@@ -8,7 +8,26 @@ export type StopReason = "end" | "tool_use" | "length" | "error";
 export type Usage = {
   input: number;
   output: number;
-  cacheRead?: number;
+  cacheRead?: number | undefined;
 };
 
-export type IsoTimestamp = number;
+/** イベント・ジョブ・ツールで共通に使うエラー表現。 */
+export type HarnessError = {
+  code: string;
+  message: string;
+};
+
+/** コアが使うエラーコード。モジュール固有のコードはこの接頭辞を使わない。 */
+export const ERROR_CODES = {
+  moduleDied: "module_died",
+  jobTimeout: "job_timeout",
+  jobLimitExceeded: "job_limit_exceeded",
+  unknownJob: "unknown_job",
+  invalidState: "invalid_state",
+  permissionDenied: "permission_denied",
+  notFound: "not_found",
+  aborted: "aborted",
+  internal: "internal",
+} as const;
+
+export type CoreErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

@@ -5,6 +5,7 @@
 ```sh
 bun install
 bun run check      # typecheck + test
+bun run docs:gen   # events.ts からイベント一覧を生成
 bun run docs:check # ドキュメント内リンクの検査
 ```
 
@@ -15,6 +16,8 @@ bun run docs:check # ドキュメント内リンクの検査
 | `bun run typecheck` | `tsc --noEmit` |
 | `bun test` | テスト |
 | `bun run check` | typecheck + test |
+| `bun run docs:gen` | `events.ts` からイベント一覧を生成 |
+| `bun run docs:gen:check` | 生成物が最新か検査 |
 | `bun run docs:check` | docs の相対リンク切れ検査 |
 | `bun start` | エントリポイント実行 (現状はバージョン表示) |
 

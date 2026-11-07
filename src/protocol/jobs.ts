@@ -1,4 +1,4 @@
-import type { CancelBy } from "./common.ts";
+import type { CancelBy, HarnessError } from "./common.ts";
 
 /** 非同期ジョブの状態。終端状態から戻らない。 */
 export type JobStatus = "running" | "done" | "failed" | "cancelled";
@@ -13,11 +13,16 @@ export type Job = {
   sessionId: string;
   /** ジョブを起動したセッション。キャンセル範囲の判定に使う。 */
   ownerSessionId: string;
-  toolCallId: string;
-  name: string;
+  /** 元になった tool_call の ID。 */
+  callId: string;
+  /** ツール名。 */
+  tool: string;
   status: JobStatus;
+  /** ジョブのタイムアウト。未指定なら config の既定値。 */
+  timeoutMs?: number;
   createdAt: number;
   endedAt?: number;
+  /** 通知に載せる短い要約。 */
   summary?: string;
   /** 結果本体のバイト数。 */
   size?: number;
@@ -27,7 +32,7 @@ export type Job = {
 };
 
 /**
- * モデルへ渡す完了通知。固定 JSON であり、これ以外のフィールドを足さない。
+ * モデルへ渡す完了通知の 1 要素。固定 JSON であり、これ以外のフィールドを足さない。
  * 本体は read_result(id) で取得する。
  */
 export type JobNotification = {
@@ -39,7 +44,8 @@ export type JobNotification = {
 
 /** read_result の戻り値。 */
 export type JobResult = {
-  id: string;
+  jobId: string;
+  tool: string;
   status: TerminalJobStatus;
   summary: string;
   size: number;
@@ -47,3 +53,12 @@ export type JobResult = {
   /** content が size より短い場合 true。 */
   truncated: boolean;
 };
+
+/** ctx.jobs.done の引数。result は result-store に保存される。 */
+export type JobDoneInput = {
+  summary: string;
+  result: string | Uint8Array;
+};
+
+/** ctx.jobs.fail の引数。 */
+export type JobFailInput = HarnessError;

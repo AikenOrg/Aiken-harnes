@@ -16,7 +16,7 @@ type Session = {
 };
 ```
 
-- 履歴 (メッセージ列) はセッションに含めない。history-store モジュールが `sessionId` で引く。
+- 履歴 (メッセージ列) は `Session` 型に含めない。コアの `HistoryManager` が `sessionId` ごとにメモリで保持する (関心の分離)。
 - モデルはセッション単位で保持する。ターン途中の変更は次のターンから反映する。
 - `id` の発行はコアの責務。モジュールは ID を生成しない。
 
@@ -29,7 +29,7 @@ created -> active -> idle -> active -> ... -> closed
 
 - `active`: ターン実行中。
 - `idle`: 入力待ち。
-- `closed`: 新規入力を受け付けない。履歴は保持する。
+- `closed`: 新規入力を受け付けない。履歴はコアのメモリに残る (プロセス終了まで)。永続化は任意。
 - `error`: ターンが回復不能に失敗。`session.closed` は発行しない。
 
 ### 1.3 サブエージェント
@@ -50,6 +50,14 @@ created -> active -> idle -> active -> ... -> closed
 | spawn | 空の履歴で子セッションを開始 | 複製しない | `session.created` + `agent.spawned` |
 
 fork は `session.manage` を必要とする。spawn は上記の 2 権限を必要とする。
+
+### 1.5 履歴との関係
+
+- 実行中の履歴はコアのメモリが唯一の正。ループは毎ターンそこから読む。
+- `history-store` は `message.appended` を購読して書き出す投影であり、コアの履歴を置き換えない。
+- 再開時は `ctx.history.load(sessionId, messages)` で保存済み履歴をコアへ戻す。
+- fork はコアのメモリ履歴を複製する。spawn は空の履歴で始める。
+- compaction の書き換えはコアの `ctx.history.rewrite` を通り、コアが `history.rewritten` を発行する。
 
 ## 2. システムプロンプト
 

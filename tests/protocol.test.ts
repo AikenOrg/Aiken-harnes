@@ -1,15 +1,19 @@
 import { describe, expect, test } from "bun:test";
-import type {
-  CoreEvent,
-  JobNotification,
-  ModuleManifest,
-  Provider,
-  Session,
+import {
+  eventSchemas,
+  type NotificationBlock,
+  EXCLUSIVE_ROLES,
+  addUsage,
+  configSchema,
+  type CoreEvent,
+  type JobNotification,
+  type ModuleManifest,
+  type Provider,
+  type Session,
 } from "../src/protocol/index.ts";
-import { addUsage } from "../src/protocol/index.ts";
 
 describe("protocol", () => {
-  test("event envelope carries seq and typed payload", () => {
+  test("event envelope carries seq and versioned payload", () => {
     const event: CoreEvent<"job.cancelled"> = {
       id: "evt_42",
       seq: 42,
@@ -17,12 +21,28 @@ describe("protocol", () => {
       type: "job.cancelled",
       source: "core",
       sessionId: "ses_1",
-      payload: { jobId: "job_1", by: "user" },
+      payload: { v: 1, jobId: "job_1", by: "user" },
     };
 
     expect(event.seq).toBe(42);
+    expect(event.payload.v).toBe(1);
     expect(event.payload.by).toBe("user");
     expect(event.sessionId).toBe("ses_1");
+  });
+
+  test("event schemas reject missing version and malformed errors", () => {
+    expect(eventSchemas["job.cancelled"].safeParse({ jobId: "j", by: "ai" }).success).toBe(false);
+    expect(
+      eventSchemas["job.failed"].safeParse({
+        v: 1,
+        jobId: "j",
+        tool: "shell",
+        error: { code: "module_died", message: "boom" },
+      }).success,
+    ).toBe(true);
+    expect(
+      eventSchemas["job.failed"].safeParse({ v: 1, jobId: "j", tool: "shell", error: "boom" }).success,
+    ).toBe(false);
   });
 
   test("job notification is the fixed four-field JSON", () => {
@@ -36,16 +56,17 @@ describe("protocol", () => {
     expect(Object.keys(notification).sort()).toEqual(["id", "size", "status", "summary"]);
   });
 
-  test("manifest declares roles and permissions", () => {
+  test("manifest declares roles and exclusive roles", () => {
     const manifest: ModuleManifest = {
-      name: "log-sqlite",
+      name: "sqlite",
       version: "0.1.0",
-      roles: ["history-store", "observer"],
+      roles: ["history-store", "session-store", "result-store"],
       critical: true,
       runner: "inprocess",
-      requires: ["session-store"],
+      main: "index.js",
+      requires: ["provider"],
       talksTo: ["ui-web"],
-      subscribes: ["message.appended", "tool.*"],
+      subscribes: ["message.appended", "history.rewritten"],
       permissions: [
         { cap: "history.read" },
         { cap: "fs.write", paths: ["./data"] },
@@ -53,8 +74,27 @@ describe("protocol", () => {
       tools: [{ name: "search_log", mode: "sync" }],
     };
 
-    expect(manifest.roles).toContain("history-store");
+    expect(manifest.roles).toContain("result-store");
     expect(manifest.permissions?.[1]?.paths).toEqual(["./data"]);
+    expect(EXCLUSIVE_ROLES).toContain("shell");
+    expect(EXCLUSIVE_ROLES).not.toContain("provider");
+  });
+
+  test("config uses one modules array and models.default", () => {
+    const parsed = configSchema.parse({
+      version: 1,
+      modules: [
+        "./modules/read.js",
+        { use: "./modules/sqlite.js", config: { path: "./data/h.db" } },
+      ],
+      models: { default: "anthropic/claude" },
+      shell: { mode: "whitelist", allow: ["git"] },
+      jobs: { autoWake: true, maxConcurrentPerSession: 4 },
+    });
+
+    expect(parsed.modules).toHaveLength(2);
+    expect(parsed.models.default).toBe("anthropic/claude");
+    expect(parsed.jobs?.autoWake).toBe(true);
   });
 
   test("provider interface and usage aggregation", async () => {
@@ -93,5 +133,26 @@ describe("protocol", () => {
     };
 
     expect("messages" in session).toBe(false);
+  });
+});
+
+describe("event schema conventions", () => {
+  test("every event payload carries v: 1", () => {
+    for (const [type, schema] of Object.entries(eventSchemas)) {
+      const shape = (schema as { shape: Record<string, unknown> }).shape;
+      expect(`${type}:${"v" in shape}`).toBe(`${type}:true`);
+    }
+  });
+
+  test("notification message batches entries in completion order", () => {
+    const block: NotificationBlock = {
+      type: "notification",
+      entries: [
+        { id: "job_1", status: "done", summary: "first", size: 10 },
+        { id: "job_2", status: "failed", summary: "second", size: 0 },
+      ],
+    };
+
+    expect(block.entries.map((entry) => entry.id)).toEqual(["job_1", "job_2"]);
   });
 });

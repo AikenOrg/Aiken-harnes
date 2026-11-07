@@ -1,15 +1,16 @@
-import type { CoreEvent } from "./events.ts";
+import type { EventEnvelope } from "./events.ts";
 import type { JobDoneInput, JobFailInput } from "./jobs.ts";
 import type { Message, NewMessage } from "./messages.ts";
 import type { PromptSegment, PromptSegmentInput } from "./prompt.ts";
+import type { Provider } from "./provider.ts";
 import type { Session } from "./session.ts";
 import type { ToolDefinition } from "./tools.ts";
 
 export type Unsubscribe = () => void;
 
 export type BusApi = {
-  on(type: string, handler: (event: CoreEvent) => void): Unsubscribe;
-  once(type: string, handler: (event: CoreEvent) => void): Unsubscribe;
+  on(type: string, handler: (event: EventEnvelope) => void): Unsubscribe;
+  once(type: string, handler: (event: EventEnvelope) => void): Unsubscribe;
   /** モジュール独自イベント用。コア予約イベントは発行できない。 */
   emit(type: string, payload: unknown, sessionId?: string): void;
 };
@@ -17,6 +18,10 @@ export type BusApi = {
 export type ToolApi = {
   register(def: ToolDefinition): void;
   unregister(name: string): void;
+};
+
+export type ProviderApi = {
+  register(provider: Provider): void;
 };
 
 export type HistoryApi = {
@@ -118,6 +123,7 @@ export type ModuleContext = {
   name: string;
   bus: BusApi;
   tools: ToolApi;
+  providers: ProviderApi;
   jobs: JobsApi;
   history: HistoryApi;
   prompt: PromptApi;
@@ -130,4 +136,11 @@ export type ModuleContext = {
   secrets: SecretsApi;
   modules: ModulesApi;
   log: LogApi;
+};
+
+/** モジュールがエクスポートする実装。manifest は別ファイル。 */
+export type ModuleExports = {
+  init(ctx: ModuleContext, config: Record<string, unknown>): Promise<void> | void;
+  dispose?(): Promise<void> | void;
+  methods?: Record<string, (...args: unknown[]) => unknown>;
 };

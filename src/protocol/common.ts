@@ -29,6 +29,7 @@ export const ERROR_CODES = {
   tooManyJobs: "too_many_jobs",
   interrupted: "interrupted",
   denied: "denied",
+  contextOverflow: "context_overflow",
   unknownJob: "unknown_job",
   invalidState: "invalid_state",
   permissionDenied: "permission_denied",

@@ -120,6 +120,7 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 | `history.rewrite` | `ctx.history.rewrite` | compactor のみ |
 | `prompt.contribute` | `ctx.prompt.contribute` | 任意 (承認制) |
 | `session.manage` | `ctx.session.*` | ui, agent 系。`close` は ui ロールなら任意、それ以外は自分のセッションと子孫 |
+| `session.delete` | `ctx.session.delete` | ui ロールのみ。対象は `closed` のみ |
 | `agent.spawn` | `ctx.agent.spawn` | 任意 |
 | `agent.message` | `ctx.agent.message` | 任意 |
 | `tool.register` | `ctx.tools.register` | ツール提供モジュール |
@@ -131,7 +132,7 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 - `ctx.history.restore` は `history.restore` 権限と `history-store` ロールの両方を必要とする。状態が `restoring` で履歴が空のセッションにだけ実行できる (D37)。
 - `ctx.agent.close` は `agent.spawn` を必要とし、自分の子孫だけを対象にする (D52)。
 - `ctx.session.close` は `session.manage`。ui ロールはユーザー操作として任意のセッションを close できる。
-- `ctx.session.delete` は `session.manage` を必要とし、`closed` のセッションだけを削除できる。ui ロールの任意削除は D54 として提案。
+- `ctx.session.delete` は専用の `session.delete` 権限を必要とし、`closed` のセッションだけを削除できる。ui ロールだけが任意の closed を削除できる。AI のツールやサブエージェントには付与しない。`session.deleted` を発行する。
 
 ### 3.2 外部資源系 (宣言と承認のみ)
 

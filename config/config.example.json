@@ -25,7 +25,7 @@
   },
   "restore": "none",
   "context": {
-    "overflowRatio": 0.9
+    "overflowRatio": 0.8
   },
   "shell": {
     "mode": "whitelist",

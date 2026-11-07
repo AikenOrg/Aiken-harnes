@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "modules": [
+    { "use": "../src/modules/provider-mock" },
+    { "use": "../src/modules/tools-read" }
+  ],
+  "models": { "default": "mock/echo" },
+  "restore": "none",
+  "context": { "overflowRatio": 0.8 },
+  "jobs": {
+    "defaultTimeoutMs": 300000,
+    "maxTimeoutMs": 900000,
+    "maxConcurrentPerSession": 8,
+    "autoWake": false,
+    "maxAutoWakeStreak": 10,
+    "maxSummaryChars": 200,
+    "maxNotificationChars": 2000,
+    "resultTtlDays": 30
+  }
+}

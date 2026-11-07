@@ -21,7 +21,8 @@
 | 11 | [spec/11-config.md](spec/11-config.md) | config.json とモジュール設定 |
 | 12 | [spec/12-lifecycle-errors.md](spec/12-lifecycle-errors.md) | critical、障害時の挙動、停止 |
 | 13 | [spec/13-roadmap.md](spec/13-roadmap.md) | マイルストーン、評価タスク、未決定 |
-| 14 | [spec/14-open-decisions.md](spec/14-open-decisions.md) | 本書で補完した点と要確認事項 |
+| 14 | [spec/14-open-decisions.md](spec/14-open-decisions.md) | 決定・補完・要確認事項 |
+| 15 | [impl/m1.md](impl/m1.md) | M1 の実装状況・動かし方・未実装項目 |
 | — | [adr/](adr/) | 環境・ツール選定の記録 |
 
 ## ドキュメントのルール

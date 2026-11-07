@@ -125,7 +125,7 @@ describe("protocol", () => {
 
   test("provider interface and usage aggregation", async () => {
     const provider: Provider = {
-      models: () => [{ id: "fake/model", provider: "fake" }],
+      models: () => [{ id: "fake/model", provider: "fake", contextWindow: 128000 }],
       async *stream() {
         yield { type: "text", delta: "hi" } as const;
         yield { type: "usage", input: 1, output: 2 } as const;

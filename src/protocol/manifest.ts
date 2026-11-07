@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { ToolDeclaration } from "./tools.ts";
 
 /**
@@ -34,6 +35,7 @@ export type CoreCapability =
   | "history.rewrite"
   | "prompt.contribute"
   | "session.manage"
+  | "session.delete"
   | "agent.spawn"
   | "agent.message"
   | "tool.register"
@@ -83,3 +85,47 @@ export type ModuleManifest = {
   permissions?: readonly PermissionRequest[];
   tools?: readonly ToolDeclaration[];
 };
+
+/** manifest.json の検証スキーマ。 */
+export const moduleManifestSchema = z.object({
+  name: z.string().min(1),
+  version: z.string().min(1),
+  roles: z.array(
+    z.enum([
+      "provider",
+      "history-store",
+      "session-store",
+      "result-store",
+      "compactor",
+      "shell",
+      "ui",
+    ]),
+  ),
+  critical: z.boolean(),
+  runner: z.literal("inprocess"),
+  main: z.string().min(1).optional(),
+  requires: z.array(z.string()).optional(),
+  talksTo: z.array(z.string()).optional(),
+  subscribes: z.array(z.string()).optional(),
+  permissions: z
+    .array(
+      z.object({
+        cap: z.string(),
+        paths: z.array(z.string()).optional(),
+        hosts: z.array(z.string()).optional(),
+        names: z.array(z.string()).optional(),
+        mode: z.enum(["full", "whitelist"]).optional(),
+        allow: z.array(z.string()).optional(),
+      }),
+    )
+    .optional(),
+  tools: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        mode: z.enum(["sync", "async"]),
+        timeoutMs: z.number().int().positive().optional(),
+      }),
+    )
+    .optional(),
+});

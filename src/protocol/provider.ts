@@ -8,7 +8,8 @@ export type ModelInfo = {
   id: string;
   /** プロバイダーのモジュール名。 */
   provider: string;
-  contextWindow?: number;
+  /** 判定の分母。必須。 */
+  contextWindow: number;
   maxOutput?: number;
   supportsTools?: boolean;
   supportsCache?: boolean;

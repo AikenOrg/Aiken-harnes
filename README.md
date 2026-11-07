@@ -10,9 +10,13 @@ TypeScript (Bun) 製のモジュール型エージェントハーネス。コア
 
 ```sh
 bun install
-bun run typecheck
-bun test
+bun run check
+
+# 同梱の mock プロバイダー + read ツールで対話
+printf 'hello\n' | bun run src/index.ts --config config/dev.config.json --approve-all
 ```
+
+`--events` を付けるとイベントを表示する。実装状況は [`docs/impl/m1.md`](docs/impl/m1.md) を参照。
 
 ## リポジトリ構成
 
@@ -28,4 +32,4 @@ bun test
 
 ## ステータス
 
-2026-11-07: リポジトリ初期化、仕様ドキュメント、共有型、zod イベントスキーマと生成文書まで。コア実装は未着手。
+2026-11-07: M1 のコア（EventBus / Session / History / Prompt / Tools / Jobs / ModuleHost / TurnLoop / CLI）を実装。永続化・承認 UI・非同期 shell・compaction は未実装。

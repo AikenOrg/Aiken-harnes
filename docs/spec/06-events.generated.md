@@ -17,6 +17,8 @@
 |  |  | `reason` | string |  |
 | `session.forked` | 履歴を複製して分岐。 | `v` | 1 | ✓ |
 |  |  | `fromSessionId` | string | ✓ |
+| `session.deleted` | セッションを削除した。history-store / result-store は連動して掃除する。 | `v` | 1 | ✓ |
+|  |  | `sessionId` | string | ✓ |
 | `turn.started` | ターン開始。 | `v` | 1 | ✓ |
 |  |  | `turnId` | string | ✓ |
 | `turn.ended` | ターン終了。 | `v` | 1 | ✓ |

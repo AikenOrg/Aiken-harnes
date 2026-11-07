@@ -10,7 +10,7 @@
 - `events.ts` の zod スキーマと生成文書、config スキーマ
 - 完了条件: `bun run check` が通る。docs の索引が揃っている。
 
-### M1: 最小の会話ループ
+### M1: 最小の会話ループ (実装済み 2026-11-07)
 
 - EventBus、SessionManager、PromptAssembler、TurnLoop
 - コアの `HistoryManager` (メモリ履歴が唯一の正)
@@ -18,8 +18,9 @@
 - 同期ツール 1 つ (`read`)
 - 最小 UI (CLI または TUI) で 1 ターンが回る
 - 完了条件: ユーザー入力 → モデル → ツール → 最終応答がイベントで追跡できる。
+- 実装: `src/core/*`、`src/modules/provider-mock`、`src/modules/tools-read`、CLI。詳細は [../impl/m1.md](../impl/m1.md)。
 
-### M2: 非同期ジョブ
+### M2: 非同期ジョブ (一部実装済み)
 
 - JobManager、`ctx.jobs.done` / `fail`、タイムアウト、同時実行数上限
 - メモリ result-store (SQLite は任意)
@@ -27,6 +28,8 @@
 - `wait` / `cancel` / `read_result(offset, limit)` / `list_jobs`
 - 通知の一括末尾追記と `job.notified`、autoWake
 - 完了条件: 評価シナリオ E1〜E3 が通る。
+- 実装済み: JobManager、`ctx.jobs.done/fail`、タイムアウト、通知キュー、`wait` / `cancel` / `read_result` / `list_jobs`。
+- 未実装: 非同期 shell、SQLite result-store。
 
 ### M3: 永続化と UI
 

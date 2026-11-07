@@ -28,7 +28,7 @@
     "allow": ["git", "bun", "ls"]
   },
   "context": {
-    "overflowRatio": 0.9
+    "overflowRatio": 0.8
   },
   "jobs": {
     "defaultTimeoutMs": 300000,
@@ -148,9 +148,10 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 
 | キー | 既定 | 内容 |
 |---|---|---|
-| `overflowRatio` | `0.9` | `usage.input / contextWindow` がこの値以上なら compaction を試みる |
+| `overflowRatio` | `0.8` | `lastInputTokens + maxTokens > ratio * contextWindow` なら compaction を試みる |
 
 - compactor が無い場合は履歴を切り捨てず、`turn.ended (reason: "context_overflow")` で止める。
+- プロバイダーがコンテキスト長超過を返した場合も同じ扱い。
 - 値は 0 より大きく 1 以下。
 
 ## 8. `restore`

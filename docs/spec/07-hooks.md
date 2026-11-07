@@ -83,7 +83,8 @@ type CompactionDecideHook = (input: {
 - 矛盾した結果は「実行しない」に倒す。
 - 実行後、compactor は `compaction.completed` を発行する。コアは `history.rewritten` を検証して発行する。
 - compaction の詳細 (要約アルゴリズム、保持する直近件数) は **TBD**。最小ループが動いてから決める。
-- compactor がいない、または `compaction.decide` が実行を選ばないまま上限に近づいた場合、コアは履歴を切り捨てず `turn.ended (reason: "context_overflow")` で止める。
+- 判定は `lastInputTokens + maxTokens > context.overflowRatio (既定 0.8) * contextWindow`。compactor がいない、または `compaction.decide` が実行を選ばないまま上限に近づいた場合、コアは履歴を切り捨てず `turn.ended (reason: "context_overflow")` で止める。
+- プロバイダーがコンテキスト長超過を返した場合も `context_overflow` として扱う。
 
 ## 5. フックの順序と衝突
 

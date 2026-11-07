@@ -1,0 +1,13 @@
+{
+  "name": "tools-read",
+  "version": "0.1.0",
+  "roles": [],
+  "critical": false,
+  "runner": "inprocess",
+  "main": "index.ts",
+  "permissions": [
+    { "cap": "tool.register" },
+    { "cap": "fs.read", "paths": ["."] }
+  ],
+  "tools": [{ "name": "read", "mode": "sync" }]
+}

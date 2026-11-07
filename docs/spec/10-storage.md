@@ -83,7 +83,7 @@ UI -> ctx.session.restore(sessionId)
 - 一覧は role API `listRestorable()`、直前のセッションは `latestRestorable()` で返す。コアがセッション状態の所有者であり、モジュールが勝手にコア状態を作らない。
 - 復元は UI の `session.restore(id)` か、`config.restore: "last"` の起動時だけ。復元時は session-store が `restoring` でセッションを作り、history-store が履歴を入れる。
 - `closed` は削除せず状態として保存する。
-- `session.delete` は `closed` のセッションだけを対象にし、自分と子孫がすべて `closed` のときだけ許可する。messages と job_results をカスケード削除する。
+- `session.delete` は `closed` のセッションだけを対象にする。`session.deleted` を契機に、history-store と result-store が messages / job_results を掃除する (DB では ON DELETE CASCADE)。
 - 一括削除 API は作らない。複数消す場合は `session.delete` を繰り返し呼ぶ (誤操作で大量削除しないため)。
 
 ## 5. ジョブ結果

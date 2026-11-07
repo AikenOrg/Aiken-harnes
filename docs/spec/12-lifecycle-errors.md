@@ -63,6 +63,7 @@ config 読込 -> core 初期化 -> manifest 読込 -> ロール排他検査 -> �
 | 履歴の永続化失敗 | コアのメモリは正なのでターンは継続。永続化だけ失われる |
 | ターン内ステップ上限超過 | `turn.ended` (`error`)。理由をモデル/UI に通知 |
 | コンテキスト上限接近 (compactor 不在) | `turn.ended` (`context_overflow`)。履歴は切り捨てない |
+| プロバイダーがコンテキスト長超過を返す | 同じ `context_overflow` として扱う |
 
 ## 6. 停止
 

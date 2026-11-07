@@ -70,8 +70,10 @@ fork は `session.manage` を必要とする。spawn は上記の 2 権限を必
 ### 1.6 コンテキスト上限
 
 - コアはプロバイダーが返した `usage.input` をセッションごとに記録する。
-- `context.overflowRatio` (既定 0.9) を超えたら、まず compaction を試みる。
+- 判定は `lastInputTokens + maxTokens > context.overflowRatio (既定 0.8) * contextWindow`。`maxTokens` は `ModelRequest.params.maxTokens` か `ModelInfo.maxOutput`。
+- 条件を満たしたら、まず compaction を試みる。
 - compactor がいない、または compaction できない場合、履歴を黙って切り捨てず、ターンを止めて `turn.ended (reason: "context_overflow")` を発行し、UI に通知する。
+- プロバイダーが「コンテキスト長超過」のエラーを返した場合も `context_overflow` として扱う。復元直後で `lastInputTokens` が不明なときの安全網。
 - 記録した `lastInputTokens` は `compaction.decide` フックの入力にも使う。
 
 ### 1.7 履歴との関係

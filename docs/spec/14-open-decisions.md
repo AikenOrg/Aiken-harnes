@@ -54,10 +54,10 @@
 | D48 | 復元中の入力 | `restoring` 状態では `user.message` を拒否 | 確定 |
 | D49 | 通知から溢れたジョブの ID | `ほか N 件: id1, ...` (最大 20 件) を併記し、`list_jobs(status?)` を追加。範囲は自分のセッションと子孫 | 確定 |
 | D50 | 復元用のジョブメタデータ | result-store に `session_id` / `status` / `notified` を保存。状態は 4 つのまま、running は復元時に `failed (code: "interrupted")`。無い構成では通知状態は戻らない | 確定 |
-| D51 | セッション削除 | `session.delete` は `closed` のみ。自分と子孫がすべて `closed` のときだけ許可。履歴・セッション・結果を削除する。一括削除 API は作らず、繰り返し呼ぶ | 確定 |
+| D51 | セッション削除 | `session.delete` は `closed` のみ。ui ロールは任意の closed を削除できる。それ以外は自分と子孫がすべて `closed` のときだけ許可。一括削除 API は作らず、繰り返し呼ぶ | 確定 |
 | D52 | `agent.close` の権限 | `agent.spawn` を必要とし、自分の子孫だけを対象にする。ui ロールは `session.close` で任意のセッションを閉じられる | 確定 |
-| D53 | コンテキスト上限のしきい値 | `context.overflowRatio` を追加し、既定 0.9 とする | 提案 |
-| D54 | ui ロールの削除範囲 | ui ロールが任意の `closed` セッションを `session.delete` できるようにするか | 提案 |
+| D53 | コンテキスト上限のしきい値 | `context.overflowRatio` は既定 0.8。判定は `lastInputTokens + maxTokens > ratio * contextWindow` | 確定 |
+| D54 | ui ロールの任意 session.delete | `session.delete` を専用権限にし、ui ロールだけ付与。対象は `closed` のみ。AI ツール・サブエージェントには付与しない。`session.deleted` を発行 | 確定 |
 
 ## 決定の要点
 
@@ -72,15 +72,16 @@
 - **セッション削除**: `closed` のみ。一括削除 API は作らず、`session.delete` を繰り返す。
 - **summary/通知**: 200/500/2000 文字の上限。超えた分は切り詰め、通知は `ほか N 件` + ID。
 - **設定/承認**: `modules` は 1 本の配列。承認はユーザー設定ディレクトリの `approvals.json`。`tool.intercept` は重い権限として警告。
-- **コンテキスト上限**: `usage.input` を記録し、`context.overflowRatio` (既定 0.9) 超えで compaction。compactor 不在時は `turn.ended (context_overflow)` で停止し、履歴を切り捨てない。
+- **コンテキスト上限**: `usage.input` を記録し、`lastInputTokens + maxTokens > context.overflowRatio (既定 0.8) * contextWindow` で compaction。compactor 不在時は `turn.ended (context_overflow)` で停止し、履歴を切り捨てない。プロバイダーがコンテキスト長超過を返した場合も同じ扱い。
+- **セッション削除**: `session.delete` は専用権限。ui ロールのみ任意の closed を削除できる。AI ツール・サブエージェントには付与しない。`session.deleted` を発行し、store が連動して掃除する。
 
 ## 次に確認したいもの
 
-1. **D53**: `context.overflowRatio` の既定 0.9 でよいか。
-2. **D54**: ui ロールが任意の `closed` セッションを削除できるようにするか。
-3. **D30**: compaction の要約方式・保持件数 (M1 後)。
-4. **D41**: コアのエラーコード体系を `ERROR_CODES` に集約してよいか。
-5. **D17 / D29**: config プロンプトの上限と、1 ターンの最大ステップ。
+1. **D30**: compaction の要約方式・保持件数 (M1 後)。
+2. **D41**: コアのエラーコード体系を `ERROR_CODES` に集約してよいか。
+3. **D17 / D29**: config プロンプトの上限と、1 ターンの最大ステップ。
+4. **D26**: 将来の worker 化に向けた ctx のシリアライズ境界。
+5. **D1 / D3**: 確定済みだが、実装時に細部を再確認する。
 
 ## 補完の原則
 

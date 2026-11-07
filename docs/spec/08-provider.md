@@ -11,7 +11,7 @@ interface Provider {
 type ModelInfo = {
   id: string;              // "provider/model" 形式の一意 ID
   provider: string;        // モジュール名
-  contextWindow?: number;
+  contextWindow: number;   // 必須。コンテキスト判定の分母
   maxOutput?: number;
   supportsTools?: boolean;
   supportsCache?: boolean;
@@ -32,7 +32,7 @@ type ModelEvent =
   | { type: "stop"; reason: "end" | "tool_use" | "length" | "error" };
 ```
 
-- プロバイダーはモジュール (`roles: ["provider"]`) として実装する。複数ロードできる。
+- プロバイダーはモジュール (`roles: ["provider"]`) として実装し、`init` で `ctx.providers.register(provider)` を呼ぶ。複数ロードできる。
 - モデル ID は `"<prefix>/<model>"` 形式。接頭辞ごとに担当プロバイダーは 1 つ。同じ接頭辞の重複は起動失敗。
 - provider は最低 1 つ必要。無ければ起動失敗。
 - `models()` はロード時に呼ばれ、コアがモデル→プロバイダーの対応表を作る。
@@ -80,6 +80,7 @@ type Block =
 | `error` | `model.failed`。`critical` なら停止 |
 
 - ストリームが `stop` を返さずに終了した場合は `stop.reason = "error"` とみなす。
+- プロバイダーがコンテキスト長超過を検出したら、`error.code = "context_overflow"` を返す。コアは通常の `context_overflow` と同じ扱いにする (復元直後の安全網)。
 - `signal.aborted` になったら、プロバイダーは速やかに反復を終了する。コアは `turn.ended` の `reason: "cancelled"` を記録し、生成済みテキストを `interrupted: true` で履歴に残す。途中の `tool_call` は捨てる。
 
 ## 4. tool_call の検証

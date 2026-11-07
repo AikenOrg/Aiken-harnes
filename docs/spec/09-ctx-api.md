@@ -9,6 +9,7 @@ type ModuleContext = {
   name: string;
   bus: BusApi;
   tools: ToolApi;
+  providers: ProviderApi;
   jobs: JobsApi;
   history: HistoryApi;
   prompt: PromptApi;
@@ -90,7 +91,19 @@ type HistoryApi = {
 - `restore` の成功後、コアはセッションを `idle` に戻す。失敗したら `error` にする。
 - `rewrite` はコアのメモリを置換し、`history.rewritten` を発行する。永続化モジュールはこれを契機に保存内容を置き換える。
 
-### 2.4 `ctx.jobs`
+### 2.4 `ctx.providers`
+
+```ts
+type ProviderApi = {
+  register(provider: Provider): void;
+};
+```
+
+- `provider` ロールを持つモジュールだけが呼べる。
+- `models()` はロード時に検証する。`contextWindow` は必須。
+- 同じモデル ID の接頭辞を複数モジュールが担当したら起動失敗。
+
+### 2.5 `ctx.jobs`
 
 非同期ツールの完了をコアへ知らせる。ジョブごとに**ちょうど 1 回**呼ぶ。
 
@@ -108,7 +121,7 @@ type JobsApi = {
 - 同時ジョブ上限を超えた新規ジョブは、`too_many_jobs` と実行中ジョブ ID を `tool_result` として返す。
 - ジョブ ID は `ToolContext.jobId` でハンドラに渡される。ハンドラは `ctx.jobs` と `ctx` の両方にアクセスできる。
 
-### 2.5 `ctx.prompt`
+### 2.6 `ctx.prompt`
 
 ```ts
 type PromptApi = {
@@ -122,7 +135,7 @@ type PromptApi = {
 - `PromptSegmentInput` は `id` / `stability` / `priority` / `content`。`source` はコアがモジュール名から埋める。
 - static 断片の削除・上書きはできない (登録のみ)。
 
-### 2.6 `ctx.session`
+### 2.7 `ctx.session`
 
 ```ts
 type SessionApi = {
@@ -143,13 +156,13 @@ type SessionApi = {
 - `get` は自分のセッションと子孫のみ。
 - `create` で `parentId` を指定できるのは、自身がその親を操作できる場合のみ。
 - `close` は実行中ターンとジョブを `by: "system"` で停止し、セッションと子孫を再帰的に `closed` にする。ui ロールはユーザー操作として任意のセッションを close できる。
-- `delete` は `closed` のセッションだけを削除する。自分と子孫がすべて `closed` のときだけ許可する。履歴・セッション・ジョブ結果も削除する (実装は各 store に委譲)。ui ロールの任意削除は D54 として提案。
+- `delete` は `session.delete` 権限を必要とする。`closed` のセッションだけを削除する。ui ロールは任意の `closed` を削除できる。それ以外は自分と子孫がすべて `closed` のときだけ許可する。履歴・セッション・ジョブ結果も削除する (実装は各 store に委譲)。`session.deleted` を発行する。
 - `listRestorable` / `restore` は `session.manage` が必要。`restore` は session-store に `restoring` で作らせ、続いて history-store の role API `restoreSession` を呼ぶ。
 - `restore` はターンループを再開しない。復元前に動いていたジョブは `failed (code: "interrupted")`、未通知の完了通知は再キューに積む。
 - `create` の `autoWake` はセッション単位の上書き。省略時、最上位は config、サブエージェントは `true`。
 - `setModel` は次のターンから反映する。
 
-### 2.7 `ctx.agent`
+### 2.8 `ctx.agent`
 
 ```ts
 type AgentApi = {
@@ -173,7 +186,7 @@ type AgentApi = {
 - `cancel` は自分の子孫のみ。実行中ターンとジョブをキャンセルする。
 - `close` は `agent.spawn` 権限を必要とし、自分の子孫だけを閉じる (D52)。子孫も再帰的に閉じ、実行中ターンとジョブは `by: "system"` で停止する。
 
-### 2.8 `ctx.hooks`
+### 2.9 `ctx.hooks`
 
 ```ts
 type HookApi = {
@@ -184,7 +197,7 @@ type HookApi = {
 - フック種別ごとの必要権限は [07-hooks.md](07-hooks.md) を参照。
 - ロード完了後の登録は、そのターンには反映しない。
 
-### 2.9 `ctx.fs` / `ctx.net` / `ctx.env` / `ctx.secrets`
+### 2.10 `ctx.fs` / `ctx.net` / `ctx.env` / `ctx.secrets`
 
 ```ts
 type FsApi = {
@@ -213,7 +226,7 @@ type SecretsApi = {
 - `ctx.net.fetch` は `hosts` の前方一致/完全一致で検査する。リダイレクト先も検査する (ベストエフォート)。
 - `ctx.secrets.get` はプロバイダーの `stream()` 実行中のみ有効。取得は監査ログに残す (値は残さない)。
 
-### 2.10 `ctx.modules`
+### 2.11 `ctx.modules`
 
 ```ts
 type ModulesApi = {
@@ -226,7 +239,7 @@ type ModulesApi = {
 - 権限は委譲されない。呼び出し先の `ctx` で再検査する。
 - 呼び出し深さに上限を設け、循環を検出する。
 
-### 2.11 `ctx.log`
+### 2.12 `ctx.log`
 
 ```ts
 type LogApi = {

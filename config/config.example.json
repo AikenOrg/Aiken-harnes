@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "core": {
+    "model": "openai/gpt-4.1",
+    "log": { "level": "info" },
+    "dataDir": "./data",
+    "turn": { "maxSteps": 50 },
+    "shutdown": { "timeoutMs": 10000 }
+  },
+  "prompt": {
+    "system": "あなたはツールを使えるアシスタントです。非同期ジョブの結果は通知と read_result で取得してください。"
+  },
+  "secrets": {
+    "OPENAI_API_KEY": { "env": "OPENAI_API_KEY" }
+  },
+  "modules": {
+    "provider": [
+      {
+        "path": "../src/modules/provider-openai/index.ts",
+        "config": { "model": "gpt-4.1" }
+      }
+    ],
+    "history": [
+      {
+        "path": "../src/modules/history-sqlite/index.ts",
+        "config": { "db": "../data/harness.sqlite" }
+      }
+    ],
+    "tools": [
+      "../src/modules/tools-fs/index.ts",
+      {
+        "path": "../src/modules/shell/index.ts",
+        "config": { "mode": "whitelist", "allow": ["ls", "git", "bun"] }
+      }
+    ],
+    "ui": ["../src/modules/ui-tui/index.ts"]
+  }
+}

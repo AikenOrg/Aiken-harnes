@@ -1,0 +1,23 @@
+{
+  "name": "next-harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Modular agent harness core (server/client, module-based)",
+  "module": "src/index.ts",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "check": "bun run typecheck && bun test && bun run docs:check",
+    "docs:check": "bun run scripts/check-docs.ts"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "typescript": "^7.0.2"
+  }
+}

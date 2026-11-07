@@ -129,6 +129,7 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 - `ctx` は呼び出しのたびに権限を検査する。未承認なら `permission.denied` を発行し、例外を返す。
 - 履歴の権限検査はコアに一本化する。履歴モジュールは保存先であって、権限の番人ではない。
 - `ctx.history.restore` は `history.restore` 権限と `history-store` ロールの両方を必要とする。状態が `restoring` で履歴が空のセッションにだけ実行できる (D37)。
+- `ctx.agent.close` は `agent.spawn` を必要とし、自分の子孫だけを対象にする (D52)。`ctx.session.delete` は `session.manage` を必要とし、`closed` のセッションだけを削除できる。
 
 ### 3.2 外部資源系 (宣言と承認のみ)
 

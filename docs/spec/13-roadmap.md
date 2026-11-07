@@ -88,6 +88,8 @@
 2. 子のプロンプトに親の static が含まれる。
 3. static を上書きしようとする spawn は `permission.violation` で拒否。
 4. 子のジョブを親がキャンセルできる。兄弟の子は不可。
+5. `agent.close` で子と孫が閉じる。親を close しても子孫が閉じる。
+6. `session.delete` は closed のセッションだけを消し、開いている子孫がいると拒否される。
 
 ### E5: 権限の実効強制
 

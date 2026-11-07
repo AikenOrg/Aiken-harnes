@@ -43,7 +43,12 @@ created -> restoring -> idle
 - 必要権限: `agent.spawn` **かつ** `prompt.contribute`。片方でも欠ければ拒否する。
 - 子セッションのモデルは親と同一を既定とする。明示指定は `agent.spawn` の引数で行う (許可モデルの範囲内)。
 - 子のジョブをキャンセルできるのは、そのセッション自身と祖先のみ (`agent.cancel(sessionId)`)。兄弟・他人の子孫は不可。
-- ターン終了時、子セッションは `closed` にせず `idle` のまま保持する (再利用・監査のため)。明示クローズは `session.manage`。
+- ターン終了時、子セッションは `closed` にせず `idle` のまま保持する (再利用・監査のため)。
+- アイドルの増加は次の 2 つの規則で防ぐ。件数上限は設けない。
+  1. `agent.close(sessionId)` で自分の子孫を閉じられる。子孫も再帰的に閉じる。
+  2. 親セッションが `close` されたら、子孫も再帰的に閉じる。
+- `agent.close` は `agent.spawn` 権限を必要とし、対象は自分の子孫のみ。
+- `session.close` は `session.manage` を必要とし、子孫も再帰的に閉じる。
 - サブエージェントの `autoWake` は既定 `true`。誰も入力しないため、完了通知で起こさないと止まる。`agent.spawn` の `autoWake` で上書きできる。
 
 ### 1.4 fork と spawn

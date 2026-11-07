@@ -4,9 +4,9 @@
 
 | ID | 論点 | 本書の扱い | 状態 |
 |---|---|---|---|
-| D1 | プロンプト断片の順序 | static → session → volatile。static 内は config → core → module、priority 降順 | 提案 |
+| D1 | プロンプト断片の順序 | static → session → volatile。static 内は config → core → module、priority 降順 | 確定 |
 | D2 | セッション状態 | `restoring / active / idle / closed / error` の 5 状態 | 確定 |
-| D3 | サブエージェント終了後の状態 | `idle` のまま保持し、明示クローズのみ | 提案 |
+| D3 | サブエージェントの idle 保持 | `idle` のまま保持する。`agent.close` で自分の子孫を閉じ、親の close でも子孫を再帰的に閉じる。件数上限は設けない | 確定 |
 | D4 | fork の意味 | コアのメモリ履歴を複製して分岐。spawn は複製しない | 提案 |
 | D5 | ロールと排他性 | provider (複数・接頭辞ごとに 1・最低 1)、history-store / session-store / result-store / compactor / shell は各 1、ui は複数。兼任可 | 確定 |
 | D6 | 承認記録の保存先 | ユーザー設定ディレクトリの `approvals.json`。モジュール名 + コードハッシュ + 権限ハッシュ | 確定 |
@@ -18,7 +18,7 @@
 | D12 | read_result の巨大結果 | `offset` / `limit` を最初から用意。既定 limit は 20,000 文字。`{truncated, nextOffset}` を返す | 確定 |
 | D13 | ジョブのタイムアウト | ツールの `timeoutMs` と config 上限。コアが `cancelled (by: timeout)` にする | 確定 |
 | D14 | キャンセル時の部分応答 | 生成済みテキストは `interrupted: true` で履歴に残す。途中の tool_call は捨てる | 確定 |
-| D15 | API キーの保管 | 環境変数 → `secrets` マッピング。`stream()` 中のみ取得可 | 提案 |
+| D15 | API キーの保管 | 環境変数 → `secrets` マッピング。`stream()` 中のみ取得可。強制は先送りし、API の形だけ固める | 確定 |
 | D16 | config の modules 形式 | 1 本の配列。文字列または `{use, config, ref}`。種別は manifest が持つ | 確定 |
 | D17 | config プロンプトの上限 | 32 KiB | 提案 |
 | D18 | 各イベントの payload | `src/protocol/events.ts` の zod が唯一の正。全 payload に `v:1`。本文は ID 参照。エラーは `{code,message}` | 確定 |
@@ -49,12 +49,13 @@
 | D43 | セッション復元の API | session-store が `listRestorable()` / `latestRestorable()` を提供。コアが呼ぶ | 確定 |
 | D44 | 履歴復元の前提 | history-store は session-store を `requires` に入れる。session-store が restoring で作り、history-store が履歴を入れる | 確定 |
 | D45 | tool.requested の引数 | イベントには載せない。承認は tool.before フックで扱う | 確定 |
-| D46 | 復元失敗時の状態 | セッションを `error` にし、UI から再試行できる。`session.closed` は発行しない | 提案 |
+| D46 | 復元失敗時の状態 | セッションを `error` にし、UI から再試行できる。`session.closed` は発行しない | 確定 |
 | D47 | 復元時の未通知通知 | 完了済みで未通知の通知を再キューに積む | 確定 |
 | D48 | 復元中の入力 | `restoring` 状態では `user.message` を拒否 | 確定 |
 | D49 | 通知から溢れたジョブの ID | `ほか N 件: id1, ...` (最大 20 件) を併記し、`list_jobs(status?)` を追加。範囲は自分のセッションと子孫 | 確定 |
 | D50 | 復元用のジョブメタデータ | result-store に `session_id` / `status` / `notified` を保存。状態は 4 つのまま、running は復元時に `failed (code: "interrupted")`。無い構成では通知状態は戻らない | 確定 |
-| D51 | セッション削除 | `session.delete` は `closed` のみ。履歴・セッション・結果を削除する | 提案 |
+| D51 | セッション削除 | `session.delete` は `closed` のみ。自分と子孫がすべて `closed` のときだけ許可。履歴・セッション・結果を削除する。一括削除 API は作らず、繰り返し呼ぶ | 確定 |
+| D52 | `agent.close` の権限 | `agent.spawn` を必要とし、自分の子孫だけを対象にする | 提案 |
 
 ## 決定の要点
 
@@ -65,16 +66,18 @@
 - **イベント**: `events.ts` の zod が正。`v:1`、ID 参照、エラーは `{code,message}`。ID は `evt_<bootId>_<seq>`。文書は生成。
 - **ツール/ジョブ**: tool.* は呼び出しがモデルに返るまで。async の tool.completed は jobId 返却時。ジョブ終端は job.* のみで、callId で相関。完了は `ctx.jobs.done/fail` でちょうど 1 回。
 - **autoWake**: 最上位は無効、サブエージェントは有効。連続自動起動に上限。
+- **サブエージェントの後始末**: `idle` は保持するが、`agent.close` と親の close による再帰クローズで増加を防ぐ。件数上限は設けない。
+- **セッション削除**: `closed` のみ。一括削除 API は作らず、`session.delete` を繰り返す。
 - **summary/通知**: 200/500/2000 文字の上限。超えた分は切り詰め、通知は `ほか N 件` + ID。
 - **設定/承認**: `modules` は 1 本の配列。承認はユーザー設定ディレクトリの `approvals.json`。`tool.intercept` は重い権限として警告。
 
 ## 次に確認したいもの
 
-1. **D51**: `session.delete` を `closed` のみに限定してよいか (履歴・結果の一括削除を伴う)。
-2. **D46**: 復元失敗時に `error` 状態で保持し、UI から再試行させる形でよいか。
-3. **D1 / D3**: プロンプト断片の順序と、サブエージェント終了後の `idle` 保持。
-4. **D15**: API キーの保管方式 (環境変数のみか、OS keyring も許すか)。
-5. **D30**: compaction の詳細。
+1. **D52**: `agent.close` を `agent.spawn` 権限でよいか、専用権限にするか。
+2. **D30**: compaction の詳細 (最小ループ後)。
+3. **D41**: コアのエラーコード体系を `ERROR_CODES` に集約してよいか。
+4. **D17 / D29**: config プロンプトの上限と、1 ターンの最大ステップ。
+5. **D26**: 将来の worker 化に向けた ctx のシリアライズ境界。
 
 ## 補完の原則
 

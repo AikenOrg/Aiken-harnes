@@ -66,6 +66,8 @@ export type AgentApi = {
   }): Promise<{ sessionId: string }>;
   message(sessionId: string, text: string): Promise<void>;
   cancel(sessionId: string, opts?: { reason?: string }): Promise<void>;
+  /** 自分の子孫セッションを閉じる。子孫も再帰的に閉じる。 */
+  close(sessionId: string, opts?: { reason?: string }): Promise<void>;
 };
 
 export type HookType = "prompt.assemble" | "tool.before" | "compaction.decide";

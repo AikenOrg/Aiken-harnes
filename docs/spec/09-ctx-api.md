@@ -131,7 +131,9 @@ type SessionApi = {
   fork(sessionId: string, opts?: { model?: string }): Promise<Session>;
   listRestorable(): Promise<Session[]>;
   restore(sessionId: string): Promise<Session>;
+  /** 子孫セッションも再帰的に閉じる。 */
   close(sessionId: string): Promise<void>;
+  /** closed のセッションだけを削除する。子孫が開いている間は拒否。 */
   delete(sessionId: string): Promise<void>;
   setModel(sessionId: string, model: string): void;
 };
@@ -140,8 +142,8 @@ type SessionApi = {
 - `session.manage` 権限が必要。
 - `get` は自分のセッションと子孫のみ。
 - `create` で `parentId` を指定できるのは、自身がその親を操作できる場合のみ。
-- `close` は実行中ターンとジョブを `by: "system"` で停止し、セッションを `closed` にする。
-- `delete` は `closed` のセッションだけを削除する。履歴・セッション・ジョブ結果も削除する (実装は各 store に委譲)。
+- `close` は実行中ターンとジョブを `by: "system"` で停止し、セッションと子孫を再帰的に `closed` にする。
+- `delete` は `closed` のセッションだけを削除する。自分と子孫がすべて `closed` のときだけ許可する。履歴・セッション・ジョブ結果も削除する (実装は各 store に委譲)。
 - `listRestorable` / `restore` は `session.manage` が必要。`restore` は session-store に `restoring` で作らせ、続いて history-store の role API `restoreSession` を呼ぶ。
 - `restore` はターンループを再開しない。復元前に動いていたジョブは `failed (code: "interrupted")`、未通知の完了通知は再キューに積む。
 - `create` の `autoWake` はセッション単位の上書き。省略時、最上位は config、サブエージェントは `true`。
@@ -161,6 +163,7 @@ type AgentApi = {
   }): Promise<{ sessionId: string }>;
   message(sessionId: string, text: string): Promise<void>;
   cancel(sessionId: string, opts?: { reason?: string }): Promise<void>;
+  close(sessionId: string, opts?: { reason?: string }): Promise<void>;
 };
 ```
 
@@ -168,6 +171,7 @@ type AgentApi = {
 - `prompt` / `volatile` で static 断片は変更できない。
 - `message` は `agent.message` が必要。宛先は自分の子孫のみ。
 - `cancel` は自分の子孫のみ。実行中ターンとジョブをキャンセルする。
+- `close` は `agent.spawn` 権限を必要とし、自分の子孫だけを閉じる。子孫も再帰的に閉じ、実行中ターンとジョブは `by: "system"` で停止する。
 
 ### 2.8 `ctx.hooks`
 

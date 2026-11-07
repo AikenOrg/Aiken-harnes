@@ -255,6 +255,7 @@ type NotificationBlock = {
 - `ctx.agent.cancel(sessionId)` は自分の子孫のみ対象。
 - 対象セッションの実行中ターンを abort し、そのセッションが起動したジョブをキャンセルする。
 - `by` は呼び出し元に応じて `ai` または `user`。`agent.cancelled` を発行する。
+- `ctx.agent.close(sessionId)` は対象と子孫を `closed` にし、実行中ターンとジョブを `by: "system"` で停止する。
 
 ## 8. 権限とフック
 

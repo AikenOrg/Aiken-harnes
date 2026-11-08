@@ -1,6 +1,7 @@
 import type { EventEnvelope } from "../../../protocol/events.ts";
 import type { Job, JobResult } from "../../../protocol/jobs.ts";
 import type { Block, Message } from "../../../protocol/messages.ts";
+import type { ImageAttachment } from "../../../protocol/images.ts";
 import type { ReasoningCapability, ReasoningParams } from "../../../protocol/reasoning.ts";
 import type { Session } from "../../../protocol/session.ts";
 import {
@@ -47,7 +48,14 @@ type AppState = {
   messageCount: number;
   jobs: Job[];
   restorable: Session[];
-  models: Array<{ id: string; provider: string; reasoning?: ReasoningCapability }>;
+  models: Array<{
+    id: string;
+    provider: string;
+    reasoning?: ReasoningCapability;
+    supportsImages?: boolean;
+    imageMediaTypes?: string[];
+  }>;
+  attachments: ImageAttachment[];
   events: EventEnvelope[];
   deltas: Map<string, string>;
   reasoningDeltas: Map<string, string>;
@@ -73,6 +81,7 @@ const state: AppState = {
   jobs: [],
   restorable: [],
   models: [],
+  attachments: [],
   events: [],
   deltas: new Map(),
   reasoningDeltas: new Map(),
@@ -118,6 +127,13 @@ const deleteButton = createButton("削除", { variant: "text", onClick: () => vo
 const headerInfo = h("div", { class: "conversation-title" });
 const headerProgress = h("div", { class: "conversation-progress" });
 const messagesEl = h("div", { class: "messages", role: "log", "aria-live": "polite" });
+const attachmentsEl = h("div", { class: "attachments" });
+const imageInput = h("input", {
+  type: "file",
+  accept: "image/png,image/jpeg,image/webp,image/gif",
+  multiple: true,
+  class: "hidden",
+});
 const composerField: TextField = createTextField({
   label: "メッセージ",
   placeholder: "Enter で送信 / Shift+Enter で改行",
@@ -132,12 +148,41 @@ const composerField: TextField = createTextField({
 });
 const sendButton = createButton("送信", { variant: "filled", onClick: () => void sendCurrent() });
 const cancelButton = createButton("キャンセル", { variant: "outlined", onClick: () => void cancelSelected() });
+const attachButton = createButton("画像", {
+  variant: "outlined",
+  onClick: () => imageInput.click(),
+});
+imageInput.addEventListener("change", () => {
+  if (imageInput.files) void addFiles([...imageInput.files]);
+  imageInput.value = "";
+});
 const composer = h(
   "div",
   { class: "composer" },
-  composerField,
-  h("div", { class: "composer-actions" }, cancelButton, sendButton),
+  attachmentsEl,
+  h(
+    "div",
+    { class: "composer-row" },
+    composerField,
+    h("div", { class: "composer-actions" }, attachButton, cancelButton, sendButton),
+    imageInput,
+  ),
 );
+composer.addEventListener("dragover", (event) => event.preventDefault());
+composer.addEventListener("drop", (event) => {
+  event.preventDefault();
+  const files = event.dataTransfer?.files;
+  if (files) void addFiles([...files]);
+});
+const onPaste = (event: ClipboardEvent): void => {
+  const files = event.clipboardData?.files;
+  if (files && files.length > 0) {
+    event.preventDefault();
+    void addFiles([...files]);
+  }
+};
+composer.addEventListener("paste", onPaste);
+messagesEl.addEventListener("paste", onPaste);
 const sideContent = h("div", { class: "side-content" });
 const toastEl = h("div", { class: "toast", role: "status" });
 const dialogRoot = h("div", { id: "dialog-root" });
@@ -284,6 +329,7 @@ function modelControls(session: Session): Node[] {
     void command<Session>("session.setModel", { sessionId: session.id, model })
       .then((updated) => {
         upsertSession(updated);
+        state.attachments = [];
         renderAll();
         toast("モデルを変更しました（次のターンから）");
       })
@@ -405,6 +451,20 @@ function blockNode(block: Block): Node {
       const text = h("div", { class: "text-block" });
       text.textContent = block.text;
       return text;
+    }
+    case "image": {
+      const figure = h("figure", { class: "message-image" });
+      figure.append(
+        h("img", {
+          src: `data:${block.mediaType};base64,${block.data}`,
+          alt: block.name ?? "image",
+          loading: "lazy",
+        }),
+      );
+      if (block.name !== undefined) {
+        figure.append(h("figcaption", { text: block.name }));
+      }
+      return figure;
     }
     case "reasoning": {
       if (!state.showReasoning) return h("span", { class: "hidden" });
@@ -561,12 +621,110 @@ function renderMessages(): void {
   if (nearBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+const MAX_IMAGE_TOTAL_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGES = 4;
+
+function base64Bytes(data: string): number {
+  const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+  return Math.floor((data.length * 3) / 4) - padding;
+}
+
+function readFileData(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result ?? "")));
+    reader.addEventListener("error", () => reject(reader.error ?? new Error("failed to read image")));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function addFiles(files: File[]): Promise<void> {
+  const session = selectedSession();
+  if (!session) {
+    toast("セッションを選択してください", true);
+    return;
+  }
+  const model = state.models.find((item) => item.id === session.model);
+  if (model?.supportsImages !== true) {
+    toast("このモデルは画像入力に対応していません", true);
+    return;
+  }
+  const allowed = new Set(model.imageMediaTypes ?? [...IMAGE_TYPES]);
+  let total = state.attachments.reduce((sum, image) => sum + base64Bytes(image.data), 0);
+  for (const file of files) {
+    if (state.attachments.length >= MAX_IMAGES) {
+      toast(`画像は最大 ${MAX_IMAGES} 枚です`, true);
+      break;
+    }
+    if (!allowed.has(file.type)) {
+      toast(`未対応の画像形式です: ${file.type || file.name}`, true);
+      continue;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast(`画像が大きすぎます（最大 ${MAX_IMAGE_BYTES / 1024 / 1024}MB）`, true);
+      continue;
+    }
+    if (total + file.size > MAX_IMAGE_TOTAL_BYTES) {
+      toast("画像の合計サイズが大きすぎます", true);
+      break;
+    }
+    try {
+      const dataUrl = await readFileData(file);
+      const match = /^data:([^;,]+);base64,(.*)$/.exec(dataUrl);
+      if (!match) {
+        toast("画像の読み込みに失敗しました", true);
+        continue;
+      }
+      state.attachments.push({ mediaType: match[1]!, data: match[2]!, name: file.name });
+      total += file.size;
+    } catch (error) {
+      toast(errorText(error), true);
+    }
+  }
+  renderComposer();
+}
+
+function renderAttachments(): void {
+  attachmentsEl.replaceChildren();
+  if (state.attachments.length === 0) return;
+  for (const [index, image] of state.attachments.entries()) {
+    const item = h("div", { class: "attachment" });
+    const img = h("img", {
+      class: "attachment-image",
+      alt: image.name ?? "attachment",
+      src: `data:${image.mediaType};base64,${image.data}`,
+    });
+    const remove = createButton("削除", {
+      variant: "text",
+      onClick: () => {
+        state.attachments.splice(index, 1);
+        renderComposer();
+      },
+    });
+    item.append(img, remove);
+    attachmentsEl.append(item);
+  }
+}
+
 function renderComposer(): void {
+  renderAttachments();
   const session = selectedSession();
   const disabled = session === undefined || session.state === "closed";
   composerField.disabled = disabled;
   setButtonDisabled(sendButton, disabled);
   setButtonDisabled(cancelButton, session === undefined || session.state !== "active");
+  const model = session ? state.models.find((item) => item.id === session.model) : undefined;
+  const imageSupport = model?.supportsImages === true;
+  setButtonDisabled(attachButton, disabled || !imageSupport);
+  attachButton.title = imageSupport
+    ? "画像を添付"
+    : "このモデルは画像入力に対応していません";
+  imageInput.accept =
+    model?.imageMediaTypes !== undefined && model.imageMediaTypes.length > 0
+      ? model.imageMediaTypes.join(",")
+      : "image/png,image/jpeg,image/webp,image/gif";
 }
 
 function jobCard(job: Job): HTMLElement {
@@ -686,6 +844,10 @@ function applySnapshot(data: SnapshotData, resetEvents: boolean): void {
     id: model.id,
     provider: model.provider,
     ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+    ...(model.supportsImages !== undefined ? { supportsImages: model.supportsImages } : {}),
+    ...(model.imageMediaTypes !== undefined
+      ? { imageMediaTypes: [...model.imageMediaTypes] }
+      : {}),
   }));
   state.approvals = data.approvals;
   state.deltas.clear();
@@ -711,6 +873,7 @@ async function selectSession(sessionId: string): Promise<void> {
   state.deltas.delete(sessionId);
   state.reasoningDeltas.delete(sessionId);
   state.reasoningScroll.delete(sessionId);
+  state.attachments = [];
   renderAll();
   try {
     const result = await command<SelectResult>("session.select", { sessionId });
@@ -774,18 +937,36 @@ async function deleteSelected(): Promise<void> {
 async function sendCurrent(): Promise<void> {
   const session = selectedSession();
   const text = composerField.value.trim();
-  if (!session || text.length === 0 || session.state === "closed") return;
+  const images = [...state.attachments];
+  if (!session || (text.length === 0 && images.length === 0) || session.state === "closed") return;
+  const localId = `local_${Date.now()}`;
+  const blocks = [];
+  if (text.length > 0) blocks.push({ type: "text" as const, text });
+  for (const image of images) {
+    blocks.push({
+      type: "image" as const,
+      mediaType: image.mediaType,
+      data: image.data,
+      ...(image.name !== undefined ? { name: image.name } : {}),
+    });
+  }
   composerField.value = "";
-  state.messages.push({
-    id: `local_${Date.now()}`,
-    role: "user",
-    blocks: [{ type: "text", text }],
-    createdAt: Date.now(),
-  });
+  state.attachments = [];
+  state.messages.push({ id: localId, role: "user", blocks, createdAt: Date.now() });
+  renderComposer();
   renderMessages();
   try {
-    await command("session.send", { sessionId: session.id, text });
+    await command("session.send", {
+      sessionId: session.id,
+      text,
+      ...(images.length > 0 ? { images } : {}),
+    });
   } catch (error) {
+    state.messages = state.messages.filter((message) => message.id !== localId);
+    state.attachments = images;
+    composerField.value = text;
+    renderComposer();
+    renderMessages();
     toast(errorText(error), true);
     scheduleHistory();
   }

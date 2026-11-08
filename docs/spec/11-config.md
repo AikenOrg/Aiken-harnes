@@ -185,6 +185,17 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 - 上限超過は `max_depth_exceeded` / `too_many_children` / `too_many_agents` で即失敗。
 - 閉じたセッションは数えない。
 
+## 6.2 `images`
+
+| キー | 既定 | 内容 |
+|---|---|---|
+| `maxBytes` | 4 MiB | 1 枚のデコード後サイズ |
+| `maxCount` | 4 | 1 メッセージの枚数 |
+| `maxTotalBytes` | 8 MiB | 1 メッセージの合計デコード後サイズ |
+
+- MIME は `image/*`、base64 は canonical のみ。
+- モデルの `supportsImages` / `imageMediaTypes` と一致しない場合は拒否する。
+
 ## 7. `context`
 
 | キー | 既定 | 内容 |

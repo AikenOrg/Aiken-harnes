@@ -29,6 +29,7 @@
 | 18 | [impl/m4b.md](impl/m4b.md) | サブエージェントの実装 |
 | 19 | [impl/m5.md](impl/m5.md) | Web UI (`ui-web`) の実装 |
 | 20 | [impl/m5b.md](impl/m5b.md) | reasoning (thinking) の表示と設定 |
+| 21 | [impl/m5c.md](impl/m5c.md) | 画像入力 |
 | — | [adr/](adr/) | 環境・ツール選定の記録 |
 
 ## ドキュメントのルール

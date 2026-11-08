@@ -6,6 +6,7 @@ import type { Job, JobResult, JobStatus } from "../../protocol/jobs.ts";
 import type { Message } from "../../protocol/messages.ts";
 import type { ModelInfo } from "../../protocol/provider.ts";
 import type { ReasoningParams } from "../../protocol/reasoning.ts";
+import type { ImageAttachment } from "../../protocol/images.ts";
 import type { Session } from "../../protocol/session.ts";
 import {
   optionalNumber,
@@ -38,7 +39,7 @@ export type UiBackend = {
   setReasoning(sessionId: string, reasoning?: ReasoningParams): Promise<void>;
   closeSession(sessionId: string): Promise<void>;
   deleteSession(sessionId: string): Promise<void>;
-  send(sessionId: string, text: string): Promise<void>;
+  send(sessionId: string, text: string, opts?: { images?: ImageAttachment[] }): Promise<void>;
   cancel(sessionId: string): Promise<void>;
   cancelJob(jobId: string): Promise<void>;
   readJob(jobId: string, options: JobReadOptions): Promise<JobResult>;
@@ -323,15 +324,32 @@ export function createUiServer(backend: UiBackend, config: UiWebConfig = {}): Ui
         return { deleted: true };
       case "session.send": {
         const sessionId = requiredString(payload.sessionId, "sessionId");
-        const text = requiredString(payload.text, "text");
+        const text = optionalString(payload.text) ?? "";
+        const images = payload.images;
+        if (text.length === 0 && (!Array.isArray(images) || images.length === 0)) {
+          throw new Error("text or images are required");
+        }
+        const attachments: ImageAttachment[] | undefined = Array.isArray(images)
+          ? images.map((value) => {
+              const image = recordOf(value);
+              const mediaType = requiredString(image.mediaType, "mediaType");
+              const data = requiredString(image.data, "data");
+              const name = optionalString(image.name);
+              const attachment: ImageAttachment = { mediaType, data };
+              if (name !== undefined) attachment.name = name;
+              return attachment;
+            })
+          : undefined;
         const session = (await backend.listSessions()).find((item) => item.id === sessionId);
         if (!session) throw new Error(`session not found: ${sessionId}`);
         if (session.state === "closed" || session.state === "restoring") {
           throw new Error(`session is not accepting input: ${session.state}`);
         }
-        void backend.send(sessionId, text).catch((error: unknown) => {
-          backend.log("warn", `session.send failed: ${errorOf(error).message}`);
-        });
+        void backend
+          .send(sessionId, text, attachments !== undefined ? { images: attachments } : undefined)
+          .catch((error: unknown) => {
+            backend.log("warn", `session.send failed: ${errorOf(error).message}`);
+          });
         return { accepted: true };
       }
       case "session.cancel": {
@@ -501,6 +519,7 @@ export function createUiServer(backend: UiBackend, config: UiWebConfig = {}): Ui
       return staticResponse(request, url.pathname);
     },
     websocket: {
+      maxPayloadLength: 24 * 1024 * 1024,
       open(ws) {
         clients.add(ws as unknown as Socket);
         void snapshot()

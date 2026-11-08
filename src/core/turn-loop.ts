@@ -2,6 +2,7 @@ import { ERROR_CODES, type CancelBy, type HarnessError } from "../protocol/commo
 import type { Block, NewMessage } from "../protocol/messages.ts";
 import type { ModelEvent, ModelRequest, ModelInfo } from "../protocol/provider.ts";
 import type { ReasoningParams } from "../protocol/reasoning.ts";
+import type { ImageAttachment } from "../protocol/images.ts";
 import type { Session } from "../protocol/session.ts";
 import type { JobNotification } from "../protocol/jobs.ts";
 import type { EventBus } from "./bus.ts";
@@ -132,15 +133,41 @@ export class TurnLoop {
     for (const sessionId of [...this.#active.keys()]) this.cancel(sessionId, by, reason);
   }
 
-  async run(session: Session, text?: string): Promise<TurnResult> {
+  async run(
+    session: Session,
+    text?: string,
+    images?: ImageAttachment[],
+  ): Promise<TurnResult> {
     const turnId = this.#ids.turn();
     const controller = new AbortController();
     this.#active.set(session.id, { turnId, controller });
     session.state = "active";
 
-    if (text !== undefined) {
-      this.#bus.emit("user.message", { v: 1, text }, { source: "core", sessionId: session.id });
-      this.#history.append(session.id, textMessage("user", text));
+    if (text !== undefined || (images !== undefined && images.length > 0)) {
+      const blocks: Block[] = [];
+      if (text !== undefined && text.length > 0) blocks.push({ type: "text", text });
+      for (const image of images ?? []) {
+        const block: Block = {
+          type: "image",
+          mediaType: image.mediaType,
+          data: image.data,
+          ...(image.name !== undefined ? { name: image.name } : {}),
+        };
+        blocks.push(block);
+      }
+      if (blocks.length === 0) blocks.push({ type: "text", text: text ?? "" });
+      this.#bus.emit(
+        "user.message",
+        {
+          v: 1,
+          text: text ?? "",
+          ...(images !== undefined && images.length > 0
+            ? { imageCount: images.length }
+            : {}),
+        },
+        { source: "core", sessionId: session.id },
+      );
+      this.#history.append(session.id, { role: "user", blocks });
     }
     this.#bus.emit("turn.started", { v: 1, turnId }, { source: "core", sessionId: session.id });
 

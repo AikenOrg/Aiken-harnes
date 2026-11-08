@@ -463,6 +463,33 @@ describe("store-sqlite", () => {
     await h2.stop();
   });
 
+  test("persists image blocks", async () => {
+    const dir = await tempDir();
+    const db = join(dir, "harness.sqlite");
+    const h1 = await makeHarness(db, "image1");
+    await h1.start();
+    const session = h1.createSession();
+    const message = h1.history.append(session.id, {
+      role: "user",
+      blocks: [
+        { type: "text", text: "look" },
+        { type: "image", mediaType: "image/png", data: "YWJj", name: "a.png" },
+      ],
+    });
+    await h1.flushPersistence();
+    await h1.stop();
+
+    const h2 = await makeHarness(db, "image2");
+    await h2.start();
+    await h2.restoreSession(session.id);
+    const restored = h2.history.read(session.id).find((item) => item.id === message.id);
+    expect(restored?.blocks).toEqual([
+      { type: "text", text: "look" },
+      { type: "image", mediaType: "image/png", data: "YWJj", name: "a.png" },
+    ]);
+    await h2.stop();
+  });
+
   test("latestRestorable returns only top-level sessions", async () => {
     const dir = await tempDir();
     const db = join(dir, "harness.sqlite");

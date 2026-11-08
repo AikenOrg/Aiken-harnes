@@ -132,6 +132,7 @@ turn.ended
 - `model.completed.usage.reasoning` は任意。reasoning トークンを返すモデルだけ載る。
 - `session.reasoning` は設定変更・解除・無視を通知する。`reasoning: null` は解除。
 - `session.model` はモデル変更を通知する。次のターンから反映する。
+- `user.message.imageCount` は入力画像の枚数。画像本文は履歴にだけ保存する。
 - `turn.ended` の `reason` は `completed` / `cancelled` / `error` / `context_overflow` / `length`。`length` は自動継続を使い切っても出力トークン上限に達した場合で、履歴の assistant は `truncated: true` を持つ。
 
 ## 7. 保存と再生

@@ -96,7 +96,7 @@ type Response =
 | `session.restore` | `{sessionId}` | SQLite から復元 |
 | `session.close` | `{sessionId}` | 再帰的に閉じる |
 | `session.delete` | `{sessionId}` | `closed` のみ |
-| `session.send` | `{sessionId, text}` | 入力をキューへ積む |
+| `session.send` | `{sessionId, text, images?}` | 入力をキューへ積む。images は base64 |
 | `session.cancel` | `{sessionId}` | 現在のターンを中断 |
 | `session.setReasoning` | `{sessionId, reasoning}` | reasoning の強度。`null` で既定へ戻す |
 | `session.setModel` | `{sessionId, model}` | セッションのモデルを変更（次のターンから） |
@@ -133,7 +133,7 @@ M5 では `0.0.0.0` を指定しても、`Origin` / `Host` は loopback のま�
 1 ページ。左がセッションの木、中央が会話、右がジョブ / イベントのタブ。
 
 - 左: 親子の入れ子、状態チップ、新規・復元・閉じる・削除。
-- 中央: モデル切り替え（セッション単位、次のターンから）、メッセージ、reasoning ブロック（ストリーミング中は展開、完了後は折りたたみ）、ツール呼び出し / 結果の折りたたみ、`interrupted` / `truncated` 表示、ストリーミング、入力欄、キャンセル。
+- 中央: モデル切り替え（セッション単位、次のターンから）、画像添付（ボタン / ドラッグ＆ドロップ / 貼り付け）、メッセージ、reasoning ブロック（ストリーミング中は展開、完了後は折りたたみ）、ツール呼び出し / 結果の折りたたみ、`interrupted` / `truncated` 表示、ストリーミング、入力欄、キャンセル。
 - 出力トークン上限で切れた部分応答には `truncated (length)` を表示する。自動継続を使い切った場合だけトーストで通知する。
 - reasoning のストリーミング表示は末尾へ自動追従する。ユーザーが上へスクロールした場合は、その位置を保持する。
 - reasoning の表示オン/オフ（既定オン）と、セッションごとの強度選択。モデルの `reasoning.efforts` にある値だけを出す。無視された場合は警告を表示する。

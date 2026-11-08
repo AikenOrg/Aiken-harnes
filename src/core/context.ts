@@ -28,6 +28,7 @@ import type { Session } from "../protocol/session.ts";
 import type { PromptSegmentInput } from "../protocol/prompt.ts";
 import type { Provider } from "../protocol/provider.ts";
 import type { ReasoningParams } from "../protocol/reasoning.ts";
+import type { ImageAttachment } from "../protocol/images.ts";
 import { eventMatches, type EventBus } from "./bus.ts";
 import type { HistoryManager } from "./history.ts";
 import type { HookRunner } from "./hooks.ts";
@@ -92,7 +93,11 @@ export type ContextFactoryOptions = {
     restore(sessionId: string): Promise<Session>;
   };
   agent?: AgentApi;
-  sendMessage?: (sessionId: string, text: string) => Promise<void>;
+  sendMessage?: (
+    sessionId: string,
+    text: string,
+    opts?: { images?: ImageAttachment[] },
+  ) => Promise<void>;
   cancelSession?: (sessionId: string, by: CancelBy, reason?: string) => boolean;
   closeSession?: (sessionId: string, reason?: string) => void;
   deleteSession?: (sessionId: string) => Promise<void>;
@@ -377,11 +382,11 @@ export function createModuleContext(
       options.sessions.setReasoning(sessionId, params);
       return Promise.resolve();
     },
-    send: (sessionId, text) => {
+    send: (sessionId, text, opts) => {
       requireCap("session.input");
       requireRole("ui");
       if (!options.sendMessage) return Promise.reject(new Error("session input is not available"));
-      return options.sendMessage(sessionId, text);
+      return options.sendMessage(sessionId, text, opts);
     },
     cancel: (sessionId, cancelOptions) => {
       requireCap("session.input");

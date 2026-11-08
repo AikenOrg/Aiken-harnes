@@ -68,6 +68,12 @@
 - UI の reasoning 表示・強度選択、CLI `--show-reasoning`
 - 詳細と実 API 検証表は [../impl/m5b.md](../impl/m5b.md)。
 
+### M5c: 画像入力 (実装済み 2026-11-08)
+
+- Web UI の画像添付、履歴保存、OpenAI / Anthropic のマルチモーダル変換
+- モデル能力 `supportsImages` / `imageMediaTypes` とサイズ・枚数上限
+- 詳細は [../impl/m5c.md](../impl/m5c.md)。
+
 ### M6: 堅牢化
 
 - Windows での動作確認 (パス、シェル、シグナル)

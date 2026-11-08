@@ -103,6 +103,33 @@ describe("OpenCode Go provider", () => {
     expect(body.tools?.[0]).toMatchObject({ type: "function", function: { name: "read" } });
   });
 
+  test("converts image blocks into image_url content parts", () => {
+    const imageModel: ModelInfo = {
+      ...model,
+      supportsImages: true,
+      imageMediaTypes: ["image/png", "image/jpeg"],
+    };
+    const messages: Message[] = [
+      {
+        id: "m1",
+        role: "user",
+        createdAt: 1,
+        blocks: [
+          { type: "text", text: "look" },
+          { type: "image", mediaType: "image/png", data: "YWJj", name: "a.png" },
+        ],
+      },
+    ];
+    const body = toOpenCodeGoRequest(request(messages), config(), imageModel);
+    expect(body.messages[1]).toEqual({
+      role: "user",
+      content: [
+        { type: "text", text: "look" },
+        { type: "image_url", image_url: { url: "data:image/png;base64,YWJj" } },
+      ],
+    });
+  });
+
   test("streams text, assembles tool calls, sends session headers, and reports cacheRead", async () => {
     const sse = [
       'data: {"choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}\n',

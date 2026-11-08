@@ -5,6 +5,7 @@ import type { PromptSegment, PromptSegmentInput } from "./prompt.ts";
 import type { ModelInfo } from "./provider.ts";
 import type { Provider } from "./provider.ts";
 import type { ReasoningParams } from "./reasoning.ts";
+import type { ImageAttachment } from "./images.ts";
 import type { Session } from "./session.ts";
 import type { ToolDefinition } from "./tools.ts";
 
@@ -67,7 +68,7 @@ export type SessionApi = {
   /** reasoning の強度を変更する。次のターンから反映する。 */
   setReasoning(sessionId: string, params?: ReasoningParams): Promise<void>;
   /** ユーザー入力をキューへ積む。UI ロール向け。 */
-  send(sessionId: string, text: string): Promise<void>;
+  send(sessionId: string, text: string, opts?: { images?: ImageAttachment[] }): Promise<void>;
   /** 現在のターンをユーザー操作としてキャンセルする。UI ロール向け。 */
   cancel(sessionId: string, opts?: { reason?: string }): Promise<void>;
 };

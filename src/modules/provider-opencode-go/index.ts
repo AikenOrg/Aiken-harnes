@@ -15,6 +15,8 @@ type ModelEntry = {
   supportsTools: boolean;
   supportsCache: boolean;
   reasoning?: ReasoningCapability;
+  supportsImages?: boolean;
+  imageMediaTypes?: string[];
 };
 
 const DEFAULT_MODELS = JSON.parse(
@@ -34,6 +36,8 @@ const configSchema = z.object({
         maxOutput: z.number().int().positive().optional(),
         supportsTools: z.boolean().optional(),
         supportsCache: z.boolean().optional(),
+        supportsImages: z.boolean().optional(),
+        imageMediaTypes: z.array(z.string()).optional(),
         reasoning: z
           .object({
             supported: z.boolean(),
@@ -79,9 +83,13 @@ type OpenAIToolCall = {
   function: { name: string; arguments: string };
 };
 
+type OpenAIContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
 type OpenAIMessage =
   | { role: "system"; content: string }
-  | { role: "user"; content: string }
+  | { role: "user"; content: string | OpenAIContentPart[] }
   | {
       role: "assistant";
       content: string | null;
@@ -291,12 +299,30 @@ export function toOpenCodeGoRequest(
       continue;
     }
 
-    const textParts: string[] = [];
+    const parts: OpenAIContentPart[] = [];
+    let hasImage = false;
     for (const block of message.blocks) {
-      if (block.type === "text") textParts.push(block.text);
-      else if (block.type === "notification") textParts.push(notificationText(block));
+      if (block.type === "text") parts.push({ type: "text", text: block.text });
+      else if (block.type === "notification") {
+        parts.push({ type: "text", text: notificationText(block) });
+      } else if (block.type === "image") {
+        hasImage = true;
+        parts.push({
+          type: "image_url",
+          image_url: { url: `data:${block.mediaType};base64,${block.data}` },
+        });
+      }
     }
-    if (textParts.length > 0) messages.push({ role: "user", content: textParts.join("\n") });
+    if (parts.length > 0) {
+      if (hasImage) {
+        messages.push({ role: "user", content: parts });
+      } else {
+        messages.push({
+          role: "user",
+          content: parts.map((part) => part.type === "text" ? part.text : "").join("\n"),
+        });
+      }
+    }
   }
 
   const maxTokens = Math.min(config.maxTokens, model.maxOutput ?? config.maxTokens);
@@ -473,6 +499,10 @@ export class OpenCodeGoProvider implements Provider {
       ...(model.reasoning !== undefined
         ? { reasoning: model.reasoning as ReasoningCapability }
         : {}),
+      ...(model.supportsImages !== undefined ? { supportsImages: model.supportsImages } : {}),
+      ...(model.imageMediaTypes !== undefined
+        ? { imageMediaTypes: [...model.imageMediaTypes] }
+        : {}),
     }));
     if (!configured.some((model) => model.id === normalizeModelId(options.config.model))) {
       configured.push({
@@ -497,6 +527,10 @@ export class OpenCodeGoProvider implements Provider {
       supportsCache: model.supportsCache,
       ...(model.reasoning !== undefined
         ? { reasoning: model.reasoning as ReasoningCapability }
+        : {}),
+      ...(model.supportsImages !== undefined ? { supportsImages: model.supportsImages } : {}),
+      ...(model.imageMediaTypes !== undefined
+        ? { imageMediaTypes: [...model.imageMediaTypes] }
         : {}),
     }));
   }

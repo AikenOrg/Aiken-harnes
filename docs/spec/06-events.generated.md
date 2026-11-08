@@ -6,8 +6,9 @@
 
 | イベント | 説明 | フィールド | 型 | 必須 |
 |---|---|---|---|---|
-| `user.message` | ユーザー入力。 | `v` | 1 | ✓ |
+| `user.message` | ユーザー入力。画像本文は履歴に保存し、イベントには枚数だけ載せる。 | `v` | 1 | ✓ |
 |  |  | `text` | string | ✓ |
+|  |  | `imageCount` | integer |  |
 | `user.cancel` | ユーザーによるキャンセル要求。 | `v` | 1 | ✓ |
 |  |  | `reason` | string |  |
 | `session.created` | セッション作成。 | `v` | 1 | ✓ |

@@ -40,6 +40,7 @@ export const eventSchemas = {
   "user.message": z.object({
     v,
     text: z.string(),
+    imageCount: z.number().int().nonnegative().optional(),
   }),
   "user.cancel": z.object({
     v,
@@ -299,7 +300,7 @@ export type EventPayloads = {
 
 /** イベントの意味。生成文書の説明列に使う。 */
 export const EVENT_DESCRIPTIONS = {
-  "user.message": "ユーザー入力。",
+  "user.message": "ユーザー入力。画像本文は履歴に保存し、イベントには枚数だけ載せる。",
   "user.cancel": "ユーザーによるキャンセル要求。",
   "session.created": "セッション作成。",
   "session.model": "セッションのモデルを変更した。次のターンから反映する。",

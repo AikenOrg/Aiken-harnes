@@ -14,7 +14,8 @@
         "high",
         "max"
       ]
-    }
+    },
+    "supportsImages": false
   },
   {
     "id": "opencode-go/cat-jam-free",
@@ -22,7 +23,8 @@
     "contextWindow": 1048576,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/claude-haiku-5-5",
@@ -30,7 +32,8 @@
     "contextWindow": 1000000,
     "maxOutput": 128000,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/crouton-alpha-free",
@@ -41,7 +44,8 @@
     "supportsCache": true,
     "reasoning": {
       "supported": false
-    }
+    },
+    "supportsImages": false
   },
   {
     "id": "opencode-go/deepseek-v4-pro",
@@ -57,7 +61,8 @@
         "max"
       ],
       "toggle": true
-    }
+    },
+    "supportsImages": false
   },
   {
     "id": "opencode-go/deepseek-v4.1-flash",
@@ -74,7 +79,14 @@
         "max"
       ],
       "toggle": true
-    }
+    },
+    "supportsImages": true,
+    "imageMediaTypes": [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp"
+    ]
   },
   {
     "id": "opencode-go/gemini-4-argon",
@@ -82,7 +94,8 @@
     "contextWindow": 1048576,
     "maxOutput": 65536,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/gemini-4-argon-contributor",
@@ -90,7 +103,8 @@
     "contextWindow": 1048576,
     "maxOutput": 65536,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/glm-5.2",
@@ -98,7 +112,8 @@
     "contextWindow": 1000000,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/glm-5.3",
@@ -114,7 +129,8 @@
         "high",
         "max"
       ]
-    }
+    },
+    "supportsImages": false
   },
   {
     "id": "opencode-go/glm-5.3-flash",
@@ -130,7 +146,12 @@
         "high",
         "max"
       ]
-    }
+    },
+    "supportsImages": true,
+    "imageMediaTypes": [
+      "image/jpeg",
+      "image/png"
+    ]
   },
   {
     "id": "opencode-go/gpt-5.6-luna",
@@ -138,7 +159,8 @@
     "contextWindow": 1050000,
     "maxOutput": 128000,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/gpt-6-luna",
@@ -146,7 +168,8 @@
     "contextWindow": 1050000,
     "maxOutput": 128000,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/grok-4.7",
@@ -162,7 +185,12 @@
         "medium",
         "high"
       ]
-    }
+    },
+    "supportsImages": true,
+    "imageMediaTypes": [
+      "image/jpeg",
+      "image/png"
+    ]
   },
   {
     "id": "opencode-go/hy3",
@@ -170,7 +198,8 @@
     "contextWindow": 256000,
     "maxOutput": 128000,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/hy4",
@@ -178,7 +207,8 @@
     "contextWindow": 1048576,
     "maxOutput": 65536,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/hy4-preview",
@@ -186,7 +216,8 @@
     "contextWindow": 1024000,
     "maxOutput": 64000,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/iceman-contributor-free",
@@ -194,7 +225,8 @@
     "contextWindow": 262144,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/kimi-k2.7-code",
@@ -205,7 +237,17 @@
     "supportsCache": true,
     "reasoning": {
       "supported": false
-    }
+    },
+    "supportsImages": true,
+    "imageMediaTypes": [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "image/bmp",
+      "image/heic",
+      "image/heif"
+    ]
   },
   {
     "id": "opencode-go/kimi-k3",
@@ -222,7 +264,17 @@
         "max"
       ],
       "toggle": true
-    }
+    },
+    "supportsImages": true,
+    "imageMediaTypes": [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "image/bmp",
+      "image/heic",
+      "image/heif"
+    ]
   },
   {
     "id": "opencode-go/kimi-k3.1-pro",
@@ -230,7 +282,8 @@
     "contextWindow": 1048576,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/longcat-2.0",
@@ -238,7 +291,8 @@
     "contextWindow": 1000000,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/longcat-2.5-preview-free",
@@ -246,7 +300,8 @@
     "contextWindow": 1000000,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/mimo-v2.5",
@@ -254,7 +309,8 @@
     "contextWindow": 1000000,
     "maxOutput": 128000,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/mimo-v2.5-pro",
@@ -262,7 +318,8 @@
     "contextWindow": 1048576,
     "maxOutput": 128000,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/mimo-v2.6-flash",
@@ -270,7 +327,8 @@
     "contextWindow": 1048576,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/mimo-v2.6-pro",
@@ -278,7 +336,8 @@
     "contextWindow": 1048576,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/minimax-m2.7",
@@ -286,7 +345,8 @@
     "contextWindow": 204800,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/minimax-m3",
@@ -297,7 +357,14 @@
     "supportsCache": true,
     "reasoning": {
       "supported": false
-    }
+    },
+    "supportsImages": true,
+    "imageMediaTypes": [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp"
+    ]
   },
   {
     "id": "opencode-go/minimax-m3.1-flash",
@@ -305,7 +372,8 @@
     "contextWindow": 1000000,
     "maxOutput": 512000,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/minimax-m3.1-flash-free",
@@ -313,7 +381,8 @@
     "contextWindow": 1000000,
     "maxOutput": 512000,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/muse-spark-1.2-contributor",
@@ -321,7 +390,8 @@
     "contextWindow": 1048576,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/muse-spark-1.3-contributor",
@@ -329,7 +399,8 @@
     "contextWindow": 1048576,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/qwen3.7-plus",
@@ -337,7 +408,8 @@
     "contextWindow": 1000000,
     "maxOutput": 65536,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/qwen3.8-flash",
@@ -353,7 +425,16 @@
         "medium"
       ],
       "toggle": true
-    }
+    },
+    "supportsImages": true,
+    "imageMediaTypes": [
+      "image/bmp",
+      "image/jpeg",
+      "image/png",
+      "image/tiff",
+      "image/webp",
+      "image/heic"
+    ]
   },
   {
     "id": "opencode-go/qwen3.8-max",
@@ -369,7 +450,16 @@
         "medium"
       ],
       "toggle": true
-    }
+    },
+    "supportsImages": true,
+    "imageMediaTypes": [
+      "image/bmp",
+      "image/jpeg",
+      "image/png",
+      "image/tiff",
+      "image/webp",
+      "image/heic"
+    ]
   },
   {
     "id": "opencode-go/space-bunny",
@@ -377,7 +467,8 @@
     "contextWindow": 1048576,
     "maxOutput": 524288,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/step-5-preview",
@@ -385,7 +476,8 @@
     "contextWindow": 1000000,
     "maxOutput": 65536,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   },
   {
     "id": "opencode-go/step-5-preview-free",
@@ -393,6 +485,7 @@
     "contextWindow": 1000000,
     "maxOutput": 65536,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "supportsImages": false
   }
 ]

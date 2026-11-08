@@ -45,7 +45,7 @@ function backendOf(ctx: ModuleContext): UiBackend {
     setReasoning: (sessionId, reasoning) => ctx.session.setReasoning(sessionId, reasoning),
     closeSession: (sessionId) => ctx.session.close(sessionId),
     deleteSession: (sessionId) => ctx.session.delete(sessionId),
-    send: (sessionId, text) => ctx.session.send(sessionId, text),
+    send: (sessionId, text, opts) => ctx.session.send(sessionId, text, opts),
     cancel: (sessionId) => ctx.session.cancel(sessionId),
     cancelJob: (jobId) => ctx.jobs.cancel(jobId),
     readJob: (jobId, options) => ctx.jobs.read(jobId, options),

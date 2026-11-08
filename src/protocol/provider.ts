@@ -16,6 +16,10 @@ export type ModelInfo = {
   supportsCache?: boolean;
   /** reasoning / thinking の能力。未指定は非対応扱い。 */
   reasoning?: ReasoningCapability;
+  /** 画像入力の能力。 */
+  supportsImages?: boolean;
+  /** 受け付ける画像 MIME タイプ。未指定は既定の png/jpeg/webp/gif。 */
+  imageMediaTypes?: string[];
 };
 
 export type ModelRequest = {

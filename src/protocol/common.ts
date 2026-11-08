@@ -43,6 +43,9 @@ export const ERROR_CODES = {
   permissionDenied: "permission_denied",
   notFound: "not_found",
   aborted: "aborted",
+  invalidImage: "invalid_image",
+  imageTooLarge: "image_too_large",
+  tooManyImages: "too_many_images",
   internal: "internal",
 } as const;
 

@@ -186,6 +186,28 @@ describe("Anthropic reasoning", () => {
     reasoning: { supported: true, efforts: ["low", "medium", "high", "max"], budget: true },
   };
 
+  test("converts image blocks into Anthropic base64 image sources", () => {
+    const messages: Message[] = [
+      {
+        id: "m1",
+        role: "user",
+        createdAt: 1,
+        blocks: [
+          { type: "text", text: "look" },
+          { type: "image", mediaType: "image/webp", data: "YWJj", name: "a.webp" },
+        ],
+      },
+    ];
+    const body = toAnthropicRequest(request(messages), config(), model);
+    expect(body.messages[0]?.content).toEqual([
+      { type: "text", text: "look" },
+      {
+        type: "image",
+        source: { type: "base64", media_type: "image/webp", data: "YWJj" },
+      },
+    ]);
+  });
+
   test("sends thinking budget and replays signed thinking before tool_use", () => {
     const messages: Message[] = [
       {

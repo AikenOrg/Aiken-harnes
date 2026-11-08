@@ -7,6 +7,14 @@ export type TextBlock = {
   text: string;
 };
 
+/** ユーザー入力の画像。data は base64 本体。 */
+export type ImageBlock = {
+  type: "image";
+  mediaType: string;
+  data: string;
+  name?: string;
+};
+
 /**
  * モデルの reasoning / thinking。
  * `opaque` は Anthropic の signature や redacted_thinking の data など、
@@ -44,6 +52,7 @@ export type NotificationBlock = {
 
 export type Block =
   | TextBlock
+  | ImageBlock
   | ReasoningBlock
   | ToolCallBlock
   | ToolResultBlock

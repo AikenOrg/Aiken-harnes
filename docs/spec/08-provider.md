@@ -15,6 +15,10 @@ type ModelInfo = {
   maxOutput?: number;
   supportsTools?: boolean;
   supportsCache?: boolean;
+  /** 画像入力の能力。 */
+  supportsImages?: boolean;
+  /** 受け付ける画像 MIME。未指定は png/jpeg/webp/gif。 */
+  imageMediaTypes?: string[];
   /** reasoning / thinking の能力。UI と送信可否に使う。 */
   reasoning?: {
     supported: boolean;
@@ -74,6 +78,7 @@ type Message = {
 
 type Block =
   | { type: "text"; text: string }
+  | { type: "image"; mediaType: string; data: string; name?: string }
   | { type: "reasoning"; text: string; opaque?: unknown }
   | { type: "tool_call"; id: string; name: string; args: unknown }
   | { type: "tool_result"; toolCallId: string; name: string; content: string; isError?: boolean }
@@ -104,6 +109,13 @@ type Block =
 - ストリームが `stop` を返さずに終了した場合は `stop.reason = "error"` とみなす。
 - プロバイダーがコンテキスト長超過を検出したら、`error.code = "context_overflow"` を返す。コアは通常の `context_overflow` と同じ扱いにする (復元直後の安全網)。
 - `signal.aborted` になったら、プロバイダーは速やかに反復を終了する。コアは `turn.ended` の `reason: "cancelled"` を記録し、生成済みテキストを `interrupted: true` で履歴に残す。途中の `tool_call` は捨てる。
+
+## 3.1 画像
+
+- 画像はユーザーメッセージの `image` ブロックに base64 で入れる。data URL は保存しない。
+- OpenAI 互換は `image_url` の `data:` URL、Anthropic は `{type:"image", source:{type:"base64", ...}}` に変換する。
+- モデルの `supportsImages` / `imageMediaTypes` に一致しない画像はコアが拒否する。
+- 画像本文はイベントに載せず、`user.message.imageCount` だけを発行する。
 
 ## 4. tool_call の検証
 

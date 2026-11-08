@@ -98,6 +98,9 @@
 | D92 | 出力トークン上限 | `length` は自動継続を最大 2 回行う。使い切ったら `turn.ended.reason = "length"`、assistant は `truncated`、ジョブは failed (code: length) | 確定 |
 | D93 | 一時的な provider エラー | 408/429/5xx/接続エラーはストリーム開始前のみ最大 2 回再試行。開始後は重複出力を避けるため再試行しない | 確定 |
 | D94 | DeepSeek の reasoning 返送 | `echoReasoning` が never でも DeepSeek は `reasoning_content` を自動返送 | 確定 |
+| D95 | 画像入力 | `Message.image` に base64 で保存し、OpenAI は `image_url`、Anthropic は base64 image に変換 | 確定 |
+| D96 | 画像の上限 | 既定 4 MiB / 4 枚 / 合計 8 MiB。モデルの `supportsImages` / `imageMediaTypes` で制限 | 確定 |
+| D97 | 画像の範囲 | M5c は入力画像のみ。画像生成・PDF・動画・CLI 添付は対象外 | 確定 |
 
 ## 決定の要点
 

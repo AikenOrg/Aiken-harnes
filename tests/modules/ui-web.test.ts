@@ -20,6 +20,7 @@ class FakeBackend implements UiBackend {
   sessions: Session[] = [];
   jobs: Job[] = [];
   sent: string[] = [];
+  sentImages: Array<{ mediaType: string; data: string }> = [];
   cancelled: string[] = [];
   #handlers = new Set<(event: EventEnvelope) => void>();
   #seq = 0;
@@ -91,8 +92,13 @@ class FakeBackend implements UiBackend {
   async deleteSession(sessionId: string): Promise<void> {
     this.sessions = this.sessions.filter((item) => item.id !== sessionId);
   }
-  async send(sessionId: string, text: string): Promise<void> {
+  async send(
+    sessionId: string,
+    text: string,
+    opts?: { images?: Array<{ mediaType: string; data: string }> },
+  ): Promise<void> {
     this.sent.push(`${sessionId}:${text}`);
+    if (opts?.images) this.sentImages.push(...opts.images);
     this.emit("user.message", { v: 1, text }, sessionId);
   }
   async cancel(sessionId: string): Promise<void> {
@@ -310,6 +316,14 @@ describe("ui-web protocol", () => {
     expect(sent.ok).toBe(true);
     await waitFor(() => backend.sent.length === 1);
     expect(backend.sent[0]).toBe(`${session.id}:hello`);
+    const imageSent = await client.command("session.send", {
+      sessionId: session.id,
+      text: "",
+      images: [{ mediaType: "image/png", data: "YWJj" }],
+    });
+    expect(imageSent.ok).toBe(true);
+    await waitFor(() => backend.sentImages.length === 1);
+    expect(backend.sentImages[0]).toEqual({ mediaType: "image/png", data: "YWJj" });
 
     const cancelled = await client.command("session.cancel", { sessionId: session.id });
     expect(cancelled.ok).toBe(true);

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { reasoningParamsSchema } from "./reasoning.ts";
+import { imagesConfigSchema } from "./images.ts";
 
 /**
  * config.json のモジュール指定。
@@ -92,6 +93,7 @@ export const configSchema = z.object({
   shell: shellConfigSchema.optional(),
   jobs: jobsConfigSchema.optional(),
   context: contextConfigSchema.optional(),
+  images: imagesConfigSchema.optional(),
   agents: agentsConfigSchema.optional(),
   log: logConfigSchema.optional(),
   dataDir: z.string().optional(),

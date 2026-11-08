@@ -159,7 +159,11 @@ type SessionApi = {
   delete(sessionId: string): Promise<void>;
   setModel(sessionId: string, model: string): void;
   /** ui ロール向け。ユーザー入力をキューへ積む。 */
-  send(sessionId: string, text: string): Promise<void>;
+  send(
+    sessionId: string,
+    text: string,
+    opts?: { images?: Array<{ mediaType: string; data: string; name?: string }> },
+  ): Promise<void>;
   /** ui ロール向け。現在のターンをユーザー操作としてキャンセルする。 */
   cancel(sessionId: string, opts?: { reason?: string }): Promise<void>;
 };

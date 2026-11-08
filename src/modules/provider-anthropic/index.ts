@@ -12,18 +12,24 @@ const DEFAULT_MODELS: Array<{
   contextWindow: number;
   maxOutput?: number;
   reasoning?: ReasoningCapability;
+  supportsImages?: boolean;
+  imageMediaTypes?: string[];
 }> = [
   {
     id: "anthropic/claude-sonnet-4-5",
     contextWindow: 200_000,
     maxOutput: 8_192,
     reasoning: { supported: true, efforts: ["low", "medium", "high", "max"], budget: true },
+    supportsImages: true,
+    imageMediaTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
   },
   {
     id: "anthropic/claude-haiku-4-5",
     contextWindow: 200_000,
     maxOutput: 8_192,
     reasoning: { supported: true, efforts: ["low", "medium", "high", "max"], budget: true },
+    supportsImages: true,
+    imageMediaTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
   },
 ];
 
@@ -35,6 +41,8 @@ const configSchema = z.object({
         id: z.string().min(1),
         contextWindow: z.number().int().positive(),
         maxOutput: z.number().int().positive().optional(),
+        supportsImages: z.boolean().optional(),
+        imageMediaTypes: z.array(z.string()).optional(),
         reasoning: z
           .object({
             supported: z.boolean(),
@@ -68,6 +76,10 @@ type AnthropicSystemBlock = {
 
 type AnthropicContentBlock =
   | { type: "text"; text: string }
+  | {
+      type: "image";
+      source: { type: "base64"; media_type: string; data: string };
+    }
   | { type: "thinking"; thinking: string; signature: string }
   | { type: "redacted_thinking"; data: string }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
@@ -166,6 +178,11 @@ function messageBlocks(
       // 署名のない thinking は API が拒否するため返送しない（表示用には残す）。
       if (opaque.signature === undefined || opaque.signature.length === 0) continue;
       blocks.push({ type: "thinking", thinking: block.text, signature: opaque.signature });
+    } else if (block.type === "image") {
+      blocks.push({
+        type: "image",
+        source: { type: "base64", media_type: block.mediaType, data: block.data },
+      });
     } else if (block.type === "text") {
       if (block.text.length > 0) blocks.push({ type: "text", text: block.text });
     } else if (block.type === "tool_call") {
@@ -455,6 +472,10 @@ export class AnthropicProvider implements Provider {
       supportsCache: true,
       ...(model.reasoning !== undefined
         ? { reasoning: model.reasoning as ReasoningCapability }
+        : {}),
+      ...(model.supportsImages !== undefined ? { supportsImages: model.supportsImages } : {}),
+      ...(model.imageMediaTypes !== undefined
+        ? { imageMediaTypes: [...model.imageMediaTypes] }
         : {}),
     }));
   }

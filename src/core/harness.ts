@@ -5,6 +5,7 @@ import { ERROR_CODES } from "../protocol/common.ts";
 import type { CancelBy } from "../protocol/common.ts";
 import type { AgentSpawnOptions } from "../protocol/ctx.ts";
 import type { ReasoningParams } from "../protocol/reasoning.ts";
+import { DEFAULT_IMAGE_MEDIA_TYPES, type ImageAttachment } from "../protocol/images.ts";
 import type { ModuleManifest } from "../protocol/manifest.ts";
 import type { ModelInfo } from "../protocol/provider.ts";
 import type { EventEnvelope } from "../protocol/events.ts";
@@ -52,6 +53,7 @@ export type HarnessOptions = {
 
 type QueuedMessage = {
   text?: string;
+  images?: ImageAttachment[];
   resolve: (result: TurnResult) => void;
   reject: (error: unknown) => void;
 };
@@ -222,7 +224,7 @@ export class Harness {
         this.bus,
         logger,
       ),
-      sendMessage: (sessionId, text) => this.send(sessionId, text),
+      sendMessage: (sessionId, text, opts) => this.send(sessionId, text, opts),
       cancelSession: (sessionId, by, reason) => this.cancel(sessionId, by, reason),
       closeSession: (sessionId, reason) => this.closeSession(sessionId, reason),
       deleteSession: (sessionId) => this.deleteSession(sessionId),
@@ -432,22 +434,76 @@ export class Harness {
     this.modules.failModule(name, error);
   }
 
-  send(sessionId: string, text: string): Promise<void> {
-    return this.#enqueueMessage(sessionId, text).then(() => undefined);
+  send(
+    sessionId: string,
+    text: string,
+    opts: { images?: ImageAttachment[] } = {},
+  ): Promise<void> {
+    return this.#enqueueMessage(sessionId, text, opts.images).then(() => undefined);
   }
 
-  #enqueueMessage(sessionId: string, text?: string): Promise<TurnResult> {
+  #validateImages(session: Session, images: ImageAttachment[]): ImageAttachment[] {
+    const config = this.config.images;
+    const maxCount = config?.maxCount ?? 4;
+    const maxBytes = config?.maxBytes ?? 4 * 1024 * 1024;
+    const maxTotalBytes = config?.maxTotalBytes ?? 8 * 1024 * 1024;
+    if (images.length > maxCount) {
+      throw agentError(ERROR_CODES.tooManyImages, `too many images (max ${maxCount})`);
+    }
+    const model = this.providers.getModelInfo(session.model);
+    if (model.supportsImages !== true) {
+      throw agentError(ERROR_CODES.invalidImage, `model does not support image input: ${session.model}`);
+    }
+    const allowed = new Set(model.imageMediaTypes ?? DEFAULT_IMAGE_MEDIA_TYPES);
+    let total = 0;
+    const normalized = images.map((image) => {
+      if (!allowed.has(image.mediaType)) {
+        throw agentError(
+          ERROR_CODES.invalidImage,
+          `unsupported image type for ${session.model}: ${image.mediaType}`,
+        );
+      }
+      if (
+        image.data.length % 4 !== 0 ||
+        !/^[A-Za-z0-9+/]*={0,2}$/.test(image.data)
+      ) {
+        throw agentError(ERROR_CODES.invalidImage, "image data must be canonical base64");
+      }
+      const padding = image.data.endsWith("==") ? 2 : image.data.endsWith("=") ? 1 : 0;
+      const bytes = Math.floor((image.data.length * 3) / 4) - padding;
+      if (bytes > maxBytes) {
+        throw agentError(ERROR_CODES.imageTooLarge, `image exceeds ${maxBytes} bytes`);
+      }
+      total += bytes;
+      const copy: ImageAttachment = { mediaType: image.mediaType, data: image.data };
+      if (image.name !== undefined) copy.name = image.name;
+      return copy;
+    });
+    if (total > maxTotalBytes) {
+      throw agentError(ERROR_CODES.imageTooLarge, `images exceed ${maxTotalBytes} bytes in total`);
+    }
+    return normalized;
+  }
+
+  #enqueueMessage(
+    sessionId: string,
+    text?: string,
+    images?: ImageAttachment[],
+  ): Promise<TurnResult> {
     if (!this.#started) return Promise.reject(new Error("harness is not started"));
     if (this.#stopping) return Promise.reject(new Error("harness is stopping"));
     const session = this.sessions.get(sessionId);
     if (session.state === "closed" || session.state === "restoring") {
       return Promise.reject(new Error(`session is not accepting input: ${session.state}`));
     }
+    const normalizedImages =
+      images !== undefined && images.length > 0 ? this.#validateImages(session, images) : undefined;
     if (text !== undefined) this.#wakeStreak.delete(sessionId);
     return new Promise((resolve, reject) => {
       const queue = this.#queues.get(sessionId) ?? [];
       const item: QueuedMessage = { resolve, reject };
       if (text !== undefined) item.text = text;
+      if (normalizedImages !== undefined) item.images = normalizedImages;
       queue.push(item);
       this.#queues.set(sessionId, queue);
       if (!this.#running.has(sessionId)) void this.#drain(sessionId);
@@ -768,7 +824,7 @@ export class Harness {
           continue;
         }
         try {
-          const result = await this.#turnLoop.run(session, item.text);
+          const result = await this.#turnLoop.run(session, item.text, item.images);
           item.resolve(result);
         } catch (error) {
           item.reject(error);

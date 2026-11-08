@@ -14,7 +14,14 @@
               "supported": true,
               "toggle": true,
               "budget": true
-            }
+            },
+            "supportsImages": true,
+            "imageMediaTypes": [
+              "image/jpeg",
+              "image/png",
+              "image/gif",
+              "image/webp"
+            ]
           }
         ],
         "apiKeySecret": "OPENCODE_API_KEY",

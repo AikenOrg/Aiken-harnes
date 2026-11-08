@@ -45,6 +45,13 @@ config 読込 -> core 初期化 -> manifest 読込 -> ロール排他検査 -> �
 - 保存モデルのプロバイダーが無い場合も `error` にし、モデル ID を理由として返す。
 - 結果の欠けた末尾 tool_call は `interrupted by restart` の tool_result で補う。
 
+## 3.2 画像入力の拒否
+
+- `invalid_image`: モデル非対応、未対応 MIME、base64 不正。
+- `image_too_large`: 1 枚または合計のサイズ超過。
+- `too_many_images`: 枚数超過。
+- これらは `session.send` の呼び出し元へ返し、ターンは開始しない。
+
 ## 4. critical の範囲
 
 - 真偽値のみ。将来のレベル化に備え、内部型は `boolean | "required" | ...` に拡張可能な形にする。

@@ -26,7 +26,7 @@ async function main(): Promise<void> {
   const configPath = argValue(args, "--config") ?? process.env.HARNESS_CONFIG;
   if (!configPath) {
     console.log(`next-harness ${CORE_VERSION}`);
-    console.log("usage: bun run src/index.ts --config <config.json> [--approve-all] [--events] [--env-file <path>] [--approvals <path>]");
+    console.log("usage: bun run src/index.ts --config <config.json> [--approve-all] [--events] [--show-reasoning] [--env-file <path>] [--approvals <path>]");
     return;
   }
 
@@ -72,9 +72,15 @@ async function main(): Promise<void> {
     }),
   });
 
+  const showReasoning = args.includes("--show-reasoning");
   harness.on("model.delta", (event) => {
-    const payload = event.payload as { text?: string };
-    if (payload.text) process.stdout.write(payload.text);
+    const payload = event.payload as { text?: string; kind?: string };
+    if (!payload.text) return;
+    if (payload.kind === "reasoning") {
+      if (showReasoning) process.stdout.write(`\x1b[2m${payload.text}\x1b[0m`);
+      return;
+    }
+    process.stdout.write(payload.text);
   });
   harness.on("tool.requested", (event) => {
     const payload = event.payload as { tool?: string; callId?: string };

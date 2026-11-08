@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Message } from "../../src/protocol/messages.ts";
-import type { ModelRequest } from "../../src/protocol/provider.ts";
+import type { ModelInfo, ModelRequest } from "../../src/protocol/provider.ts";
 import type { PromptSegment } from "../../src/protocol/prompt.ts";
 import {
   AnthropicProvider,
@@ -18,6 +18,9 @@ function config(logRaw = false): AnthropicConfig {
     maxTokens: 1_024,
     promptCaching: true,
     logRaw,
+    authStyle: "x-api-key",
+    reasoningStyle: "anthropic_thinking",
+    echoReasoning: "always",
   };
 }
 
@@ -172,5 +175,130 @@ describe("Anthropic provider", () => {
       caught = error;
     }
     expect((caught as { code?: string }).code).toBe("context_overflow");
+  });
+});
+
+describe("Anthropic reasoning", () => {
+  const reasoningModel: ModelInfo = {
+    ...model,
+    reasoning: { supported: true, efforts: ["low", "medium", "high", "max"], budget: true },
+  };
+
+  test("sends thinking budget and replays signed thinking before tool_use", () => {
+    const messages: Message[] = [
+      {
+        id: "m1",
+        role: "assistant",
+        createdAt: 1,
+        blocks: [
+          { type: "reasoning", text: "signed thought", opaque: { kind: "signature", value: "sig" } },
+          { type: "text", text: "calling" },
+          { type: "tool_call", id: "call_1", name: "read", args: { path: "a" } },
+        ],
+      },
+    ];
+    const req = request(messages);
+    req.params = { temperature: 0.3, reasoning: { effort: "high", budgetTokens: 9_000 } };
+    const body = toAnthropicRequest(
+      req,
+      { ...config(), maxTokens: 8_192, echoReasoning: "always" },
+      reasoningModel,
+    );
+    expect(body.thinking).toEqual({ type: "enabled", budget_tokens: 4_096 });
+    expect(body.temperature).toBeUndefined();
+    const content = body.messages[0]?.content ?? [];
+    expect(content[0]).toEqual({ type: "thinking", thinking: "signed thought", signature: "sig" });
+    expect(content[1]).toEqual({ type: "text", text: "calling" });
+    expect(content[2]).toMatchObject({ type: "tool_use", name: "read" });
+  });
+
+  test("drops unsigned thinking and replays redacted_thinking", () => {
+    const messages: Message[] = [
+      {
+        id: "m1",
+        role: "assistant",
+        createdAt: 1,
+        blocks: [
+          { type: "reasoning", text: "unsigned" },
+          { type: "reasoning", text: "", opaque: { kind: "redacted", data: "encrypted" } },
+          { type: "tool_call", id: "call_1", name: "read", args: {} },
+        ],
+      },
+    ];
+    const req = request(messages);
+    req.params = { reasoning: { effort: "high" } };
+    const body = toAnthropicRequest(req, { ...config(), maxTokens: 8_192 }, reasoningModel);
+    const content = body.messages[0]?.content ?? [];
+    expect(content).toEqual([
+      { type: "redacted_thinking", data: "encrypted" },
+      { type: "tool_use", id: "call_1", name: "read", input: {} },
+    ]);
+  });
+
+  test("streams thinking, signature, text, and reasoning tokens", async () => {
+    const sse = [
+      'data: {"type":"message_start","message":{"usage":{"input_tokens":20}}}\n',
+      'data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}\n',
+      'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"plan"}}\n',
+      'data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"sig-1"}}\n',
+      'data: {"type":"content_block_stop","index":0}\n',
+      'data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":"answer"}}\n',
+      'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"answer"}}\n',
+      'data: {"type":"content_block_stop","index":1}\n',
+      'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":7,"output_tokens_details":{"thinking_tokens":4}}}\n',
+      'data: {"type":"message_stop"}\n',
+    ].join("");
+    const provider = new AnthropicProvider({
+      config: { ...config(), maxTokens: 8_192 },
+      getApiKey: () => "secret",
+      fetch: async () => new Response(sse, { status: 200 }),
+    });
+    const events = [];
+    for await (const event of provider.stream(request([]), new AbortController().signal)) events.push(event);
+    expect(events).toEqual([
+      { type: "usage", input: 20, output: 0 },
+      { type: "reasoning", delta: "plan" },
+      { type: "reasoning_end", opaque: { kind: "signature", value: "sig-1" } },
+      { type: "text", delta: "answer" },
+      { type: "text", delta: "answer" },
+      { type: "usage", input: 0, output: 7, reasoning: 4 },
+      { type: "stop", reason: "end" },
+    ]);
+  });
+
+  test("streams redacted thinking as opaque only", async () => {
+    const sse = [
+      'data: {"type":"content_block_start","index":0,"content_block":{"type":"redacted_thinking","data":"enc"}}\n',
+      'data: {"type":"content_block_stop","index":0}\n',
+      'data: {"type":"message_stop"}\n',
+    ].join("");
+    const provider = new AnthropicProvider({
+      config: { ...config(), maxTokens: 8_192 },
+      getApiKey: () => "secret",
+      fetch: async () => new Response(sse, { status: 200 }),
+    });
+    const events = [];
+    for await (const event of provider.stream(request([]), new AbortController().signal)) events.push(event);
+    expect(events).toEqual([
+      { type: "reasoning_end", opaque: { kind: "redacted", data: "enc" } },
+      { type: "stop", reason: "end" },
+    ]);
+  });
+
+  test("supports bearer auth for the OpenCode Go Anthropic endpoint", async () => {
+    let headers: Record<string, string> = {};
+    const provider = new AnthropicProvider({
+      config: { ...config(), authStyle: "bearer", maxTokens: 8_192 },
+      getApiKey: () => "secret-key",
+      fetch: async (_input, init) => {
+        headers = init.headers as Record<string, string>;
+        return new Response('data: {"type":"message_stop"}\n', { status: 200 });
+      },
+    });
+    for await (const _event of provider.stream(request([]), new AbortController().signal)) {
+      // drain
+    }
+    expect(headers.authorization).toBe("Bearer secret-key");
+    expect(headers["x-api-key"]).toBeUndefined();
   });
 });

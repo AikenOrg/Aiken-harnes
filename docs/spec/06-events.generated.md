@@ -14,6 +14,10 @@
 |  |  | `parentId` | string |  |
 |  |  | `model` | string | ✓ |
 |  |  | `autoWake` | boolean |  |
+|  |  | `reasoning` | { effort?: "off" \| "low" \| "medium" \| "high" \| "max", budgetTokens?: integer } |  |
+| `session.reasoning` | セッションの reasoning 設定、または指定が無視されたことを通知する。 | `v` | 1 | ✓ |
+|  |  | `reasoning` | { effort?: "off" \| "low" \| "medium" \| "high" \| "max", budgetTokens?: integer } \| null |  |
+|  |  | `ignored` | string |  |
 | `session.closed` | セッション終了。 | `v` | 1 | ✓ |
 |  |  | `reason` | string |  |
 | `session.forked` | 履歴を複製して分岐。 | `v` | 1 | ✓ |
@@ -33,12 +37,13 @@
 |  |  | `messageCount` | integer | ✓ |
 |  |  | `toolCount` | integer | ✓ |
 |  |  | `promptHash` | string | ✓ |
-| `model.delta` | ストリーミング差分。既定では購読されない。 | `v` | 1 | ✓ |
+| `model.delta` | ストリーミング差分。kind で本文と reasoning を区別する（v2）。既定では購読されない。 | `v` | 2 | ✓ |
 |  |  | `turnId` | string | ✓ |
 |  |  | `text` | string | ✓ |
+|  |  | `kind` | "text" \| "reasoning" | ✓ |
 | `model.completed` | モデルストリーム完了。 | `v` | 1 | ✓ |
 |  |  | `turnId` | string | ✓ |
-|  |  | `usage` | { input: integer, output: integer, cacheRead?: integer } | ✓ |
+|  |  | `usage` | { input: integer, output: integer, cacheRead?: integer, reasoning?: integer } | ✓ |
 |  |  | `stop` | "end" \| "tool_use" \| "length" \| "error" | ✓ |
 | `model.failed` | モデル呼び出しの失敗。 | `v` | 1 | ✓ |
 |  |  | `turnId` | string |  |

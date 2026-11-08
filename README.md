@@ -26,6 +26,15 @@ bun run src/index.ts --config config/m5.config.json --approve-all
 # Web UI の承認モーダル確認 (mock provider)
 bun run src/index.ts --config config/m5-approval.config.json
 
+# reasoning 表示 (OpenCode Go / GLM)
+bun run src/index.ts --config config/m5b.config.json --approve-all
+
+# reasoning (Anthropic 形式 / MiniMax)
+bun run src/index.ts --config config/m5b-anthropic.config.json --approve-all
+
+# CLI で reasoning も薄く表示
+bun run src/index.ts --config config/m5b.config.json --approve-all --show-reasoning
+
 # SQLite 永続化 + session.restore
 bun run src/index.ts --config config/m3.config.json --approve-all
 ```
@@ -46,4 +55,4 @@ bun run src/index.ts --config config/m3.config.json --approve-all
 
 ## ステータス
 
-2026-11-08: M1 のコア、非同期 shell、Anthropic / OpenCode Go、SQLite 永続化、session.restore、承認フロー、サブエージェント、Web UI (`ui-web`) を実装。compaction は未実装。
+2026-11-08: M1 のコア、非同期 shell、Anthropic / OpenCode Go、SQLite 永続化、session.restore、承認フロー、サブエージェント、Web UI (`ui-web`)、reasoning (thinking) の表示・設定を実装。compaction は未実装。

@@ -1,6 +1,7 @@
 import type { EventBus } from "./bus.ts";
 import type { IdGenerator } from "./ids.ts";
 import type { Session, SessionState } from "../protocol/session.ts";
+import type { ReasoningParams } from "../protocol/reasoning.ts";
 
 export class SessionNotFoundError extends Error {
   constructor(sessionId: string) {
@@ -14,6 +15,7 @@ export type CreateSessionOptions = {
   parentId?: string;
   autoWake?: boolean;
   toolNames?: string[];
+  reasoning?: ReasoningParams;
 };
 
 /** コアが最小限保持するセッション状態。履歴は HistoryManager が持つ。 */
@@ -40,14 +42,22 @@ export class SessionManager {
     };
     if (options.parentId !== undefined) session.parentId = options.parentId;
     if (options.toolNames !== undefined) session.toolNames = [...options.toolNames];
+    if (options.reasoning !== undefined) session.reasoning = { ...options.reasoning };
     this.#sessions.set(session.id, session);
 
-    const payload: { v: 1; model: string; autoWake: boolean; parentId?: string } = {
+    const payload: {
+      v: 1;
+      model: string;
+      autoWake: boolean;
+      parentId?: string;
+      reasoning?: ReasoningParams;
+    } = {
       v: 1,
       model: session.model,
       autoWake,
     };
     if (session.parentId !== undefined) payload.parentId = session.parentId;
+    if (session.reasoning !== undefined) payload.reasoning = session.reasoning;
     this.#bus.emit("session.created", payload, { source: "core", sessionId: session.id });
     return session;
   }
@@ -83,6 +93,30 @@ export class SessionManager {
 
   setModel(sessionId: string, model: string): void {
     this.get(sessionId).model = model;
+  }
+
+  setReasoning(sessionId: string, reasoning?: ReasoningParams): Session {
+    const session = this.get(sessionId);
+    if (reasoning === undefined) delete session.reasoning;
+    else session.reasoning = { ...reasoning };
+    delete session.reasoningIgnored;
+    this.#bus.emit(
+      "session.reasoning",
+      { v: 1, reasoning: reasoning ?? null },
+      { source: "core", sessionId },
+    );
+    return session;
+  }
+
+  setReasoningIgnored(sessionId: string, ignored: string): void {
+    const session = this.get(sessionId);
+    if (ignored.length === 0) delete session.reasoningIgnored;
+    else session.reasoningIgnored = ignored;
+    this.#bus.emit(
+      "session.reasoning",
+      { v: 1, ignored },
+      { source: "core", sessionId },
+    );
   }
 
   setLastInputTokens(sessionId: string, inputTokens: number): void {

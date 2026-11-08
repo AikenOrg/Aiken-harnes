@@ -1,6 +1,7 @@
 import type { EventEnvelope } from "../../../protocol/events.ts";
 import type { Job, JobResult } from "../../../protocol/jobs.ts";
 import type { Block, Message } from "../../../protocol/messages.ts";
+import type { ReasoningCapability, ReasoningParams } from "../../../protocol/reasoning.ts";
 import type { Session } from "../../../protocol/session.ts";
 import {
   createButton,
@@ -10,6 +11,7 @@ import {
   createList,
   createListItem,
   createStatusChip,
+  createSwitch,
   createTabs,
   createTextField,
   h,
@@ -44,9 +46,11 @@ type AppState = {
   messageCount: number;
   jobs: Job[];
   restorable: Session[];
-  models: Array<{ id: string; provider: string }>;
+  models: Array<{ id: string; provider: string; reasoning?: ReasoningCapability }>;
   events: EventEnvelope[];
   deltas: Map<string, string>;
+  reasoningDeltas: Map<string, string>;
+  showReasoning: boolean;
   approvals: PendingApproval[];
   tab: "jobs" | "events";
   filter: EventFilter;
@@ -69,6 +73,15 @@ const state: AppState = {
   models: [],
   events: [],
   deltas: new Map(),
+  reasoningDeltas: new Map(),
+  showReasoning: (() => {
+    try {
+      const stored = localStorage.getItem("ui.showReasoning");
+      return stored === null ? true : stored === "1";
+    } catch {
+      return true;
+    }
+  })(),
   approvals: [],
   tab: "jobs",
   filter: "all",
@@ -248,6 +261,74 @@ function shortenId(id: string): string {
   return id.length > 18 ? `${id.slice(0, 17)}…` : id;
 }
 
+function reasoningControls(session: Session): Node[] {
+  const nodes: Node[] = [];
+  const toggle = createSwitch("reasoning を表示", state.showReasoning, (value) => {
+    state.showReasoning = value;
+    try {
+      localStorage.setItem("ui.showReasoning", value ? "1" : "0");
+    } catch {
+      // ignore
+    }
+    renderMessages();
+  });
+  nodes.push(toggle.element);
+
+  const ignoredWarning =
+    session.reasoningIgnored !== undefined && session.reasoningIgnored.length > 0
+      ? h("span", {
+          class: "reasoning-warning",
+          title: session.reasoningIgnored,
+          text: "指定は無視されました",
+        })
+      : undefined;
+  const model = state.models.find((item) => item.id === session.model);
+  const capability = model?.reasoning;
+  if (capability?.supported !== true) {
+    nodes.push(h("span", { class: "muted", text: "reasoning 非対応" }));
+    if (ignoredWarning) nodes.push(ignoredWarning);
+    return nodes;
+  }
+  const options: string[] = ["", "off"];
+  for (const effort of capability.efforts ?? []) {
+    if (effort !== "off" && !options.includes(effort)) options.push(effort);
+  }
+  if ((capability.efforts === undefined || capability.efforts.length === 0) && capability.toggle === true) {
+    options.push("medium");
+  }
+  const select = h("select", { class: "m3-select reasoning-select", "aria-label": "reasoning の強度" });
+  for (const effort of options) {
+    const label =
+      effort === ""
+        ? "既定"
+        : effort === "medium" && (capability.efforts === undefined || capability.efforts.length === 0)
+          ? "on (medium)"
+          : effort;
+    const option = h("option", { value: effort, text: label });
+    select.append(option);
+  }
+  const current = session.reasoning?.effort ?? "";
+  if (current.length > 0 && !options.includes(current)) options.push(current);
+  select.value = current;
+  select.addEventListener("change", () => {
+    const value = select.value;
+    const reasoning: ReasoningParams | null =
+      value === "" ? null : { effort: value as NonNullable<ReasoningParams["effort"]> };
+    void command<Session>("session.setReasoning", { sessionId: session.id, reasoning })
+      .then((updated) => {
+        upsertSession(updated);
+        renderHeader();
+        renderSessions();
+      })
+      .catch((error: unknown) => toast(errorText(error), true));
+  });
+  nodes.push(
+    h("label", { class: "reasoning-control" }, h("span", { class: "muted", text: "reasoning" }), select),
+  );
+  if (ignoredWarning) nodes.push(ignoredWarning);
+  return nodes;
+}
+
 function renderHeader(): void {
   headerInfo.replaceChildren();
   headerProgress.replaceChildren();
@@ -262,6 +343,7 @@ function renderHeader(): void {
     h("span", { class: "muted", text: session.model }),
     h("span", { class: "muted", text: `${state.messageCount} messages` }),
   );
+  headerInfo.append(...reasoningControls(session));
   if (session.state === "active") headerProgress.append(createLinearProgress());
 }
 
@@ -286,6 +368,16 @@ function blockNode(block: Block): Node {
       const text = h("div", { class: "text-block" });
       text.textContent = block.text;
       return text;
+    }
+    case "reasoning": {
+      if (!state.showReasoning) return h("span", { class: "hidden" });
+      const hasText = block.text.length > 0;
+      const details = h("details", { class: "block reasoning" });
+      details.append(
+        h("summary", { text: hasText ? "reasoning" : "reasoning (redacted)" }),
+        ...(hasText ? [h("pre", { class: "reasoning-text", text: block.text })] : []),
+      );
+      return details;
     }
     case "tool_call": {
       const details = h("details", { class: "block tool-call" });
@@ -384,6 +476,15 @@ function renderMessages(): void {
     article.append(meta);
     for (const block of message.blocks) article.append(blockNode(block));
     messagesEl.append(article);
+  }
+  const reasoningDelta = state.reasoningDeltas.get(session.id);
+  if (state.showReasoning && reasoningDelta !== undefined && reasoningDelta.length > 0) {
+    const details = h("details", { class: "block reasoning streaming", open: true });
+    details.append(
+      h("summary", { text: "reasoning (streaming)" }),
+      h("pre", { class: "reasoning-text", text: reasoningDelta }),
+    );
+    messagesEl.append(details);
   }
   const delta = state.deltas.get(session.id);
   if (delta !== undefined && delta.length > 0) {
@@ -523,9 +624,14 @@ function applySnapshot(data: SnapshotData, resetEvents: boolean): void {
   state.messageCount = data.messageCount;
   state.jobs = data.jobs;
   state.restorable = data.restorable;
-  state.models = data.models.map((model) => ({ id: model.id, provider: model.provider }));
+  state.models = data.models.map((model) => ({
+    id: model.id,
+    provider: model.provider,
+    ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+  }));
   state.approvals = data.approvals;
   state.deltas.clear();
+  state.reasoningDeltas.clear();
   if (resetEvents) state.events = [];
   renderAll();
   showNextApproval();
@@ -544,6 +650,7 @@ async function selectSession(sessionId: string): Promise<void> {
   state.jobs = [];
   state.messageCount = 0;
   state.deltas.delete(sessionId);
+  state.reasoningDeltas.delete(sessionId);
   renderAll();
   try {
     const result = await command<SelectResult>("session.select", { sessionId });
@@ -791,6 +898,7 @@ function scheduleHistory(): void {
         state.messages = result.messages;
         state.messageCount = result.count;
         state.deltas.delete(sessionId);
+        state.reasoningDeltas.delete(sessionId);
         renderMessages();
         renderHeader();
       } catch {
@@ -877,9 +985,30 @@ function handleEvent(event: EventEnvelope): void {
       if (state.connected) void refreshSnapshot().catch(() => undefined);
       break;
     }
+    case "session.reasoning": {
+      if (sessionId !== undefined) {
+        const session = state.sessions.find((item) => item.id === sessionId);
+        if (session) {
+          if (payload.reasoning === null) delete session.reasoning;
+          else if (payload.reasoning !== undefined) {
+            session.reasoning = payload.reasoning as ReasoningParams;
+          }
+          if (typeof payload.ignored === "string") {
+            if (payload.ignored.length > 0) session.reasoningIgnored = payload.ignored;
+            else delete session.reasoningIgnored;
+          }
+          renderHeader();
+          renderSessions();
+        }
+      }
+      break;
+    }
     case "turn.started": {
       setSessionState(sessionId, "active");
-      if (sessionId !== undefined && sessionId === state.selectedId) state.deltas.set(sessionId, "");
+      if (sessionId !== undefined && sessionId === state.selectedId) {
+        state.deltas.set(sessionId, "");
+        state.reasoningDeltas.set(sessionId, "");
+      }
       renderSessions();
       renderHeader();
       renderComposer();
@@ -897,7 +1026,11 @@ function handleEvent(event: EventEnvelope): void {
     case "model.delta": {
       if (sessionId !== undefined && sessionId === state.selectedId) {
         const text = typeof payload.text === "string" ? payload.text : "";
-        state.deltas.set(sessionId, (state.deltas.get(sessionId) ?? "") + text);
+        if (payload.kind === "reasoning") {
+          state.reasoningDeltas.set(sessionId, (state.reasoningDeltas.get(sessionId) ?? "") + text);
+        } else {
+          state.deltas.set(sessionId, (state.deltas.get(sessionId) ?? "") + text);
+        }
         renderMessages();
       }
       break;

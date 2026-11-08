@@ -123,6 +123,16 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 
 ## 4. `models`
 
+```json
+{
+  "default": "opencode-go/glm-5.3-flash",
+  "opencode-go/glm-5.3-flash": { "reasoning": { "effort": "high" } }
+}
+```
+
+- `default` 以外のキーはモデル ID。`reasoning` で既定の強度・budget を指定する。
+- セッション上書きと `agent.spawn({reasoning})` が優先される。
+
 | キー | 型 | 内容 |
 |---|---|---|
 | `default` | string | 既定モデル。`<prefix>/<model>` 形式 |

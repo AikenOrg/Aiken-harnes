@@ -31,6 +31,12 @@ function describe(json: JsonSchema): string {
   if (Array.isArray(json.enum)) {
     return json.enum.map((value) => JSON.stringify(value)).join(" | ");
   }
+  if (Array.isArray(json.anyOf)) {
+    return json.anyOf.map((value) => describe(value as JsonSchema)).join(" | ");
+  }
+  if (Array.isArray(json.oneOf)) {
+    return json.oneOf.map((value) => describe(value as JsonSchema)).join(" | ");
+  }
   if (json.type === "array") {
     return `${describe((json.items ?? {}) as JsonSchema)}[]`;
   }

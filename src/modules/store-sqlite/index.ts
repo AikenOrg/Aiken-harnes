@@ -59,10 +59,15 @@ type JobRow = {
 };
 
 function rowSession(row: SessionRow): Session {
-  let meta: { autoWake?: boolean; lastInputTokens?: number } = {};
+  let meta: {
+    autoWake?: boolean;
+    lastInputTokens?: number;
+    reasoning?: Session["reasoning"];
+    reasoningIgnored?: string;
+  } = {};
   if (row.meta_json) {
     try {
-      meta = JSON.parse(row.meta_json) as { autoWake?: boolean; lastInputTokens?: number };
+      meta = JSON.parse(row.meta_json) as typeof meta;
     } catch {
       meta = {};
     }
@@ -76,6 +81,8 @@ function rowSession(row: SessionRow): Session {
   if (row.parent_id !== null) session.parentId = row.parent_id;
   if (meta.autoWake !== undefined) session.autoWake = meta.autoWake;
   if (meta.lastInputTokens !== undefined) session.lastInputTokens = meta.lastInputTokens;
+  if (meta.reasoning !== undefined) session.reasoning = meta.reasoning;
+  if (meta.reasoningIgnored !== undefined) session.reasoningIgnored = meta.reasoningIgnored;
   return session;
 }
 
@@ -170,7 +177,12 @@ export class SqliteStore {
       switch (event.type) {
         case "session.created": {
           if (!event.sessionId) return;
-          const payload = event.payload as { model?: string; parentId?: string; autoWake?: boolean };
+          const payload = event.payload as {
+            model?: string;
+            parentId?: string;
+            autoWake?: boolean;
+            reasoning?: Session["reasoning"];
+          };
           const sessionId = event.sessionId;
           this.#enqueueOrdered(() =>
             this.#upsertSession({
@@ -180,9 +192,45 @@ export class SqliteStore {
               model: payload.model ?? "unknown",
               createdAt: event.ts,
               updatedAt: event.ts,
-              meta: { autoWake: payload.autoWake ?? payload.parentId !== undefined },
+              meta: {
+                autoWake: payload.autoWake ?? payload.parentId !== undefined,
+                ...(payload.reasoning !== undefined ? { reasoning: payload.reasoning } : {}),
+              },
             }),
           );
+          return;
+        }
+        case "session.reasoning": {
+          if (!event.sessionId) return;
+          const sessionId = event.sessionId;
+          const payload = event.payload as {
+            reasoning?: Session["reasoning"] | null;
+            ignored?: string;
+          };
+          this.#enqueueOrdered(() => {
+            const row = this.#db
+              .query("SELECT meta_json FROM sessions WHERE id = ?")
+              .get(sessionId) as { meta_json: string | null } | null;
+            if (!row) return;
+            let meta: Record<string, unknown> = {};
+            if (row.meta_json) {
+              try {
+                meta = JSON.parse(row.meta_json) as Record<string, unknown>;
+              } catch {
+                meta = {};
+              }
+            }
+            if (payload.reasoning === null) delete meta.reasoning;
+            else if (payload.reasoning !== undefined) meta.reasoning = payload.reasoning;
+            if (payload.ignored !== undefined && payload.ignored.length > 0) {
+              meta.reasoningIgnored = payload.ignored;
+            } else if (payload.ignored !== undefined) {
+              delete meta.reasoningIgnored;
+            }
+            this.#db
+              .query("UPDATE sessions SET meta_json = ?, updated_at = ? WHERE id = ?")
+              .run(JSON.stringify(meta), event.ts, sessionId);
+          });
           return;
         }
         case "session.closed": {
@@ -681,6 +729,7 @@ const module: ModuleExports = {
       "message.appended",
       "history.rewritten",
       "session.created",
+      "session.reasoning",
       "session.closed",
       "session.restored",
       "session.deleted",

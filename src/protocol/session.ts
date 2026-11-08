@@ -1,3 +1,5 @@
+import type { ReasoningParams } from "./reasoning.ts";
+
 /** セッションの状態。履歴や永続化とは独立にコアが保持する。 */
 export type SessionState = "restoring" | "active" | "idle" | "closed" | "error";
 
@@ -17,5 +19,9 @@ export type Session = {
   lastInputTokens?: number;
   /** このセッションに許可されたツール名。未指定は全ツール。 */
   toolNames?: string[];
+  /** セッション単位の reasoning 上書き。未指定は config の既定。 */
+  reasoning?: ReasoningParams;
+  /** reasoning 指定が無視された理由（UI 表示・診断用）。 */
+  reasoningIgnored?: string;
   createdAt: number;
 };

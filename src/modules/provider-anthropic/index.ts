@@ -3,12 +3,28 @@ import type { ModuleExports } from "../../protocol/ctx.ts";
 import type { StopReason } from "../../protocol/common.ts";
 import type { Message, ToolCallBlock, ToolResultBlock } from "../../protocol/messages.ts";
 import type { ModelEvent, ModelInfo, ModelRequest, Provider } from "../../protocol/provider.ts";
+import type { ReasoningCapability, ReasoningParams } from "../../protocol/reasoning.ts";
 import type { PromptSegment } from "../../protocol/prompt.ts";
 import type { ToolSpec } from "../../protocol/tools.ts";
 
-const DEFAULT_MODELS = [
-  { id: "anthropic/claude-sonnet-4-5", contextWindow: 200_000, maxOutput: 8_192 },
-  { id: "anthropic/claude-haiku-4-5", contextWindow: 200_000, maxOutput: 8_192 },
+const DEFAULT_MODELS: Array<{
+  id: string;
+  contextWindow: number;
+  maxOutput?: number;
+  reasoning?: ReasoningCapability;
+}> = [
+  {
+    id: "anthropic/claude-sonnet-4-5",
+    contextWindow: 200_000,
+    maxOutput: 8_192,
+    reasoning: { supported: true, efforts: ["low", "medium", "high", "max"], budget: true },
+  },
+  {
+    id: "anthropic/claude-haiku-4-5",
+    contextWindow: 200_000,
+    maxOutput: 8_192,
+    reasoning: { supported: true, efforts: ["low", "medium", "high", "max"], budget: true },
+  },
 ];
 
 const configSchema = z.object({
@@ -19,6 +35,14 @@ const configSchema = z.object({
         id: z.string().min(1),
         contextWindow: z.number().int().positive(),
         maxOutput: z.number().int().positive().optional(),
+        reasoning: z
+          .object({
+            supported: z.boolean(),
+            efforts: z.array(z.enum(["off", "low", "medium", "high", "max"])).optional(),
+            toggle: z.boolean().optional(),
+            budget: z.boolean().optional(),
+          })
+          .optional(),
       }),
     )
     .default(DEFAULT_MODELS),
@@ -27,6 +51,9 @@ const configSchema = z.object({
   maxTokens: z.number().int().positive().default(4_096),
   promptCaching: z.boolean().default(true),
   logRaw: z.boolean().default(false),
+  authStyle: z.enum(["x-api-key", "bearer"]).default("x-api-key"),
+  reasoningStyle: z.enum(["anthropic_thinking", "none"]).default("anthropic_thinking"),
+  echoReasoning: z.enum(["never", "tool_turns", "always"]).default("always"),
 });
 
 export type AnthropicConfig = z.infer<typeof configSchema>;
@@ -39,6 +66,8 @@ type AnthropicSystemBlock = {
 
 type AnthropicContentBlock =
   | { type: "text"; text: string }
+  | { type: "thinking"; thinking: string; signature: string }
+  | { type: "redacted_thinking"; data: string }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
   | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean };
 
@@ -51,6 +80,8 @@ export type AnthropicRequestBody = {
   messages: AnthropicMessage[];
   tools?: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>;
   temperature?: number;
+  stream?: true;
+  thinking?: { type: "enabled"; budget_tokens: number } | { type: "disabled" };
 };
 
 export class AnthropicApiError extends Error {
@@ -101,10 +132,39 @@ function notificationText(block: Extract<Message["blocks"][number], { type: "not
   return `[job notifications]\n${entries}`;
 }
 
-function messageBlocks(message: Message): AnthropicContentBlock[] {
+function opaqueParts(opaque: unknown): { signature?: string; redacted?: string } {
+  if (typeof opaque === "string") return { signature: opaque };
+  if (typeof opaque !== "object" || opaque === null) return {};
+  const value = opaque as Record<string, unknown>;
+  if (typeof value.signature === "string") return { signature: value.signature };
+  if (value.kind === "signature" && typeof value.value === "string") return { signature: value.value };
+  if (value.kind === "redacted" && typeof value.data === "string") return { redacted: value.data };
+  if (typeof value.data === "string") return { redacted: value.data };
+  return {};
+}
+
+function messageBlocks(
+  message: Message,
+  config: AnthropicConfig,
+  thinkingEnabled: boolean,
+): AnthropicContentBlock[] {
   const blocks: AnthropicContentBlock[] = [];
+  const hasToolCall = message.blocks.some((block) => block.type === "tool_call");
+  const echo =
+    config.echoReasoning === "always" ||
+    (config.echoReasoning === "tool_turns" && hasToolCall);
   for (const block of message.blocks) {
-    if (block.type === "text") {
+    if (block.type === "reasoning") {
+      if (!thinkingEnabled || !echo) continue;
+      const opaque = opaqueParts(block.opaque);
+      if (opaque.redacted !== undefined) {
+        blocks.push({ type: "redacted_thinking", data: opaque.redacted });
+        continue;
+      }
+      // 署名のない thinking は API が拒否するため返送しない（表示用には残す）。
+      if (opaque.signature === undefined || opaque.signature.length === 0) continue;
+      blocks.push({ type: "thinking", thinking: block.text, signature: opaque.signature });
+    } else if (block.type === "text") {
       if (block.text.length > 0) blocks.push({ type: "text", text: block.text });
     } else if (block.type === "tool_call") {
       blocks.push(toolCallBlock(block));
@@ -115,6 +175,24 @@ function messageBlocks(message: Message): AnthropicContentBlock[] {
     }
   }
   return blocks;
+}
+
+function fitThinkingBudget(budget: number | undefined, maxTokens: number): number {
+  const requested = budget ?? Math.max(1024, Math.floor(maxTokens / 2));
+  return Math.max(1024, Math.min(requested, Math.floor(maxTokens / 2)));
+}
+
+function reasoningEnabled(
+  reasoning: ReasoningParams | undefined,
+  config: AnthropicConfig,
+  maxTokens: number,
+): boolean {
+  return (
+    config.reasoningStyle === "anthropic_thinking" &&
+    reasoning !== undefined &&
+    reasoning.effort !== "off" &&
+    maxTokens >= 2048
+  );
 }
 
 /** コアの ModelRequest を Anthropic Messages API の body へ変換する。 */
@@ -135,9 +213,14 @@ export function toAnthropicRequest(
     return block;
   });
 
+  const maxTokens = Math.min(
+    config.maxTokens,
+    model.maxOutput ?? config.maxTokens,
+  );
+  const thinkingEnabled = reasoningEnabled(request.params?.reasoning, config, maxTokens);
   const messages: AnthropicMessage[] = [];
   for (const message of request.messages) {
-    const blocks = messageBlocks(message);
+    const blocks = messageBlocks(message, config, thinkingEnabled);
     if (blocks.length === 0) continue;
     const role: "user" | "assistant" = message.role === "assistant" ? "assistant" : "user";
     const previous = messages.at(-1);
@@ -145,16 +228,22 @@ export function toAnthropicRequest(
     else messages.push({ role, content: blocks });
   }
 
-  const maxTokens = Math.min(
-    config.maxTokens,
-    model.maxOutput ?? config.maxTokens,
-  );
   const body: AnthropicRequestBody = {
     model: modelApiName(request.model),
     max_tokens: maxTokens,
     system,
     messages,
+    stream: true,
   };
+  if (request.params?.reasoning !== undefined) {
+    body.thinking = thinkingEnabled
+      ? {
+          type: "enabled",
+          budget_tokens: fitThinkingBudget(request.params.reasoning.budgetTokens, maxTokens),
+        }
+      : { type: "disabled" };
+    if (thinkingEnabled) delete body.temperature;
+  }
   if (request.tools.length > 0) {
     body.tools = request.tools.map((tool: ToolSpec) => ({
       name: tool.name,
@@ -162,17 +251,41 @@ export function toAnthropicRequest(
       input_schema: tool.inputSchema,
     }));
   }
-  if (request.params?.temperature !== undefined) body.temperature = request.params.temperature;
+  if (request.params?.temperature !== undefined && !thinkingEnabled) {
+    body.temperature = request.params.temperature;
+  }
   return body;
 }
 
 type StreamEvent = {
   type?: string;
   index?: number;
-  message?: { usage?: { input_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } };
-  content_block?: { type?: string; id?: string; name?: string; text?: string };
-  delta?: { type?: string; text?: string; partial_json?: string; stop_reason?: string };
-  usage?: { output_tokens?: number };
+  message?: {
+    usage?: {
+      input_tokens?: number;
+      cache_read_input_tokens?: number;
+      cache_creation_input_tokens?: number;
+      output_tokens_details?: { thinking_tokens?: number };
+    };
+  };
+  content_block?: {
+    type?: string;
+    id?: string;
+    name?: string;
+    text?: string;
+    thinking?: string;
+    signature?: string;
+    data?: string;
+  };
+  delta?: {
+    type?: string;
+    text?: string;
+    thinking?: string;
+    signature?: string;
+    partial_json?: string;
+    stop_reason?: string;
+  };
+  usage?: { output_tokens?: number; output_tokens_details?: { thinking_tokens?: number } };
   error?: { type?: string; message?: string };
 };
 
@@ -277,6 +390,9 @@ export class AnthropicProvider implements Provider {
       ...(model.maxOutput !== undefined ? { maxOutput: model.maxOutput } : {}),
       supportsTools: true,
       supportsCache: true,
+      ...(model.reasoning !== undefined
+        ? { reasoning: model.reasoning as ReasoningCapability }
+        : {}),
     }));
   }
 
@@ -284,6 +400,20 @@ export class AnthropicProvider implements Provider {
     const model = this.models().find((candidate) => candidate.id === request.model);
     if (!model) throw new AnthropicApiError("unknown_model", `unknown model: ${request.model}`);
     const apiKey = this.#getApiKey();
+    const reasoning = request.params?.reasoning;
+    const maxTokens = Math.min(this.#config.maxTokens, model.maxOutput ?? this.#config.maxTokens);
+    if (reasoning !== undefined && reasoning.effort !== "off") {
+      if (this.#config.reasoningStyle === "none") {
+        yield { type: "reasoning_ignored", reason: "anthropic reasoningStyle is none" };
+      } else if (model.reasoning?.supported === false) {
+        yield { type: "reasoning_ignored", reason: `${model.id} does not support thinking` };
+      } else if (maxTokens < 2_048) {
+        yield {
+          type: "reasoning_ignored",
+          reason: `max_tokens (${maxTokens}) is too small for thinking`,
+        };
+      }
+    }
     const body = toAnthropicRequest(request, this.#config, model);
 
     if (this.#config.logRaw) this.#log("anthropic request", { model: body.model, body });
@@ -291,8 +421,13 @@ export class AnthropicProvider implements Provider {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-api-key": apiKey,
+        ...(this.#config.authStyle === "bearer"
+          ? { authorization: `Bearer ${apiKey}` }
+          : { "x-api-key": apiKey }),
         "anthropic-version": "2023-06-01",
+        ...(request.sessionId !== undefined
+          ? { "x-opencode-session": request.sessionId }
+          : {}),
       },
       body: JSON.stringify(body),
       signal,
@@ -307,6 +442,7 @@ export class AnthropicProvider implements Provider {
     if (this.#config.logRaw) this.#log("anthropic response", { status: response.status });
 
     const toolJson = new Map<number, { id: string; name: string; json: string }>();
+    const thinkingBlocks = new Map<number, { text: string; signature: string }>();
     let stop: StopReason | undefined;
 
     for await (const event of sseEvents(response.body, signal)) {
@@ -316,6 +452,7 @@ export class AnthropicProvider implements Provider {
       if (event.type === "error") throw errorFromEvent(event);
 
       if (event.type === "message_start") {
+        const thinking = event.message?.usage?.output_tokens_details?.thinking_tokens ?? 0;
         yield {
           type: "usage",
           input: event.message?.usage?.input_tokens ?? 0,
@@ -323,27 +460,59 @@ export class AnthropicProvider implements Provider {
           ...(event.message?.usage?.cache_read_input_tokens !== undefined
             ? { cacheRead: event.message.usage.cache_read_input_tokens }
             : {}),
+          ...(thinking > 0 ? { reasoning: thinking } : {}),
         };
       } else if (event.type === "content_block_start") {
+        const index = event.index ?? 0;
         if (event.content_block?.type === "text" && event.content_block.text) {
           yield { type: "text", delta: event.content_block.text };
+        } else if (event.content_block?.type === "thinking") {
+          const initial = event.content_block.thinking ?? "";
+          thinkingBlocks.set(index, {
+            text: initial,
+            signature: event.content_block.signature ?? "",
+          });
+          if (initial.length > 0) yield { type: "reasoning", delta: initial };
+        } else if (event.content_block?.type === "redacted_thinking") {
+          if (event.content_block.data !== undefined) {
+            yield {
+              type: "reasoning_end",
+              opaque: { kind: "redacted", data: event.content_block.data },
+            };
+          }
         } else if (event.content_block?.type === "tool_use") {
-          toolJson.set(event.index ?? 0, {
-            id: event.content_block.id ?? `tool_${event.index ?? 0}`,
+          toolJson.set(index, {
+            id: event.content_block.id ?? `tool_${index}`,
             name: event.content_block.name ?? "unknown",
             json: "",
           });
         }
       } else if (event.type === "content_block_delta") {
+        const index = event.index ?? 0;
         if (event.delta?.type === "text_delta" && event.delta.text) {
           yield { type: "text", delta: event.delta.text };
+        } else if (event.delta?.type === "thinking_delta" && event.delta.thinking) {
+          const current = thinkingBlocks.get(index);
+          if (current) current.text += event.delta.thinking;
+          else thinkingBlocks.set(index, { text: event.delta.thinking, signature: "" });
+          yield { type: "reasoning", delta: event.delta.thinking };
+        } else if (event.delta?.type === "signature_delta" && event.delta.signature) {
+          const current = thinkingBlocks.get(index);
+          if (current) current.signature += event.delta.signature;
         } else if (event.delta?.type === "input_json_delta") {
-          const index = event.index ?? 0;
           const current = toolJson.get(index);
           if (current) current.json += event.delta.partial_json ?? "";
         }
       } else if (event.type === "content_block_stop") {
         const index = event.index ?? 0;
+        const thinking = thinkingBlocks.get(index);
+        if (thinking) {
+          thinkingBlocks.delete(index);
+          yield {
+            type: "reasoning_end",
+            opaque: { kind: "signature", value: thinking.signature },
+          };
+        }
         const current = toolJson.get(index);
         if (current) {
           toolJson.delete(index);
@@ -359,7 +528,13 @@ export class AnthropicProvider implements Provider {
         }
       } else if (event.type === "message_delta") {
         stop = mapStopReason(event.delta?.stop_reason);
-        yield { type: "usage", input: 0, output: event.usage?.output_tokens ?? 0 };
+        const thinking = event.usage?.output_tokens_details?.thinking_tokens ?? 0;
+        yield {
+          type: "usage",
+          input: 0,
+          output: event.usage?.output_tokens ?? 0,
+          ...(thinking > 0 ? { reasoning: thinking } : {}),
+        };
       } else if (event.type === "message_stop") {
         yield { type: "stop", reason: stop ?? "end" };
         return;

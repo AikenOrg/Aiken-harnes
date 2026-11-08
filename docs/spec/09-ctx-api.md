@@ -174,6 +174,7 @@ type SessionApi = {
 - `restore` はターンループを再開しない。復元前に動いていたジョブは `failed (code: "interrupted")`、未通知の完了通知は再キューに積む。
 - `create` の `autoWake` はセッション単位の上書き。省略時、最上位は config、サブエージェントは `true`。
 - `setModel` は次のターンから反映する。
+- `setReasoning` は `ui` ロールまたは `session.input` 権限で呼べる。設定は `sessions.meta_json` に保存し、復元後も維持する。次のターンから反映する。
 - `list` / `models` は `session.manage`、`send` / `cancel` は `session.input` と `ui` ロールを必要とする。
 - `send` はターンの完了を待たずにキューへ積む。`cancel` は `user.cancel` を発行する。
 
@@ -189,6 +190,7 @@ type AgentApi = {
     model?: string;
     tools?: string[];
     autoWake?: boolean;
+    reasoning?: { effort?: "off"|"low"|"medium"|"high"|"max"; budgetTokens?: number };
   }): Promise<{ sessionId: string; jobId: string }>;
   send(fromSessionId: string, toSessionId: string, text: string): Promise<{ jobId: string }>;
   message(fromSessionId: string, toSessionId: string, text: string): Promise<{ jobId: string }>;

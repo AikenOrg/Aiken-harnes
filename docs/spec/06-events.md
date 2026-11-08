@@ -29,7 +29,7 @@ type EventEnvelope<TType extends string = string, TPayload = unknown> = {
    - `agent.message` は `jobId` のみ（本文なし）。
    - `tool.requested` は引数を持たない。承認に必要な引数は `tool.before` フックが受け取る。
    - ジョブ結果はイベントに載せず、`read_result(jobId)` で取得する。
-2. **全ペイロードに `v: 1` を必須で付ける。** 将来の破壊的変更に備える。加算的な変更は `v: 1` のまま、削除・型変更は版を上げる。
+2. **全ペイロードに `v` を必須で付ける。** 版は**イベント種別ごと**に管理する。加算的な変更は同じ版のまま、削除・型変更はその種別の版を上げる。購読側は `type` と `v` の組で判断する。
 3. **エラーは `{ code, message }` に統一する。** `model.failed`、`job.failed`、`tool.failed`、`module.failed`、`permission.*` が該当する。
 4. **大きなデータを載せない。** 例外は `model.delta` の差分テキストと `user.message` の入力本文のみ。どちらも永続的な本文の参照元ではない。
 
@@ -59,7 +59,7 @@ type EventEnvelope<TType extends string = string, TPayload = unknown> = {
 ### 4.3 モデル
 
 - `model.requested`: 送信直前。`promptHash` は static 部分のハッシュ。
-- `model.delta`: ストリーミング差分。購読は任意。
+- `model.delta`: ストリーミング差分。`kind: "text" | "reasoning"` を持ち、v2。購読は任意。
 - `model.completed`: `usage` と `stop` を含む。
 - `model.failed`: `error: { code, message }`。
 
@@ -125,10 +125,12 @@ turn.ended
 
 ## 6. バージョニング
 
-- 全ペイロードの `v` は `CORE_EVENT_VERSION` (現在 `1`)。
-- フィールド追加は `v: 1` のまま。消費者は未知フィールドを無視する。
-- フィールド削除・意味変更・型変更は `v` を上げる。購読側は `v` で分岐する。
-- イベント型の追加も `v: 1` でよい (購読側は未知型を無視する)。
+- 版はイベント種別ごと。既定は `v: 1`、`model.delta` だけ `v: 2`。
+- フィールド追加は同じ版のまま。消費者は未知フィールドを無視する。
+- フィールド削除・意味変更・型変更はその種別の `v` を上げる。購読側は `type` と `v` で分岐する。
+- イベント型の追加は `v: 1` でよい (購読側は未知型を無視する)。
+- `model.completed.usage.reasoning` は任意。reasoning トークンを返すモデルだけ載る。
+- `session.reasoning` は設定変更・解除・無視を通知する。`reasoning: null` は解除。
 
 ## 7. 保存と再生
 

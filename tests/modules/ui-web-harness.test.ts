@@ -150,6 +150,12 @@ describe("ui-web with a real harness", () => {
     ]);
     const client = await openClient(port);
     const session = await createAndSelect(client, "slow/model");
+    const reasoning = await client.command("session.setReasoning", {
+      sessionId: session.id,
+      reasoning: { effort: "high" },
+    });
+    expect(reasoning.ok).toBe(true);
+    expect(harness.sessions.get(session.id).reasoning).toEqual({ effort: "high" });
     const sent = await client.command("session.send", { sessionId: session.id, text: "slow task" });
     expect(sent.ok).toBe(true);
     await waitFor(() =>

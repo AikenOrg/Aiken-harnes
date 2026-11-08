@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "modules": [
+    {
+      "use": "../src/modules/provider-anthropic",
+      "config": {
+        "model": "minimax/minimax-m3",
+        "models": [
+          {
+            "id": "minimax/minimax-m3",
+            "contextWindow": 1000000,
+            "maxOutput": 131072,
+            "reasoning": {
+              "supported": true,
+              "toggle": true,
+              "budget": true
+            }
+          }
+        ],
+        "apiKeySecret": "OPENCODE_API_KEY",
+        "baseUrl": "https://opencode.ai/inference/go/anthropic/v1/messages",
+        "maxTokens": 4096,
+        "promptCaching": false,
+        "logRaw": false,
+        "authStyle": "bearer",
+        "reasoningStyle": "anthropic_thinking",
+        "echoReasoning": "always"
+      }
+    },
+    {
+      "use": "../src/modules/tools-read"
+    },
+    {
+      "use": "../src/modules/ui-web",
+      "config": {
+        "host": "127.0.0.1",
+        "port": 8791,
+        "seedColor": "#6750A4"
+      }
+    }
+  ],
+  "models": {
+    "default": "minimax/minimax-m3",
+    "minimax/minimax-m3": {
+      "reasoning": {
+        "effort": "high",
+        "budgetTokens": 2048
+      }
+    }
+  },
+  "restore": "none",
+  "log": {
+    "level": "info"
+  },
+  "secrets": {
+    "OPENCODE_API_KEY": {
+      "env": "OPENCODE_API_KEY"
+    }
+  }
+}

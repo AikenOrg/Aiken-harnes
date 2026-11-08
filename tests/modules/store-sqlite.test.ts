@@ -78,6 +78,39 @@ describe("store-sqlite", () => {
     await h2.stop();
   });
 
+  test("persists reasoning settings and reasoning blocks", async () => {
+    const dir = await tempDir();
+    const db = join(dir, "harness.sqlite");
+    const h1 = await makeHarness(db, "reason1");
+    await h1.start();
+    const session = h1.createSession();
+    h1.sessions.setReasoning(session.id, { effort: "high", budgetTokens: 2_000 });
+    h1.sessions.setReasoningIgnored(session.id, "gateway ignored thinking");
+    h1.history.append(session.id, {
+      role: "assistant",
+      blocks: [
+        { type: "reasoning", text: "signed", opaque: { kind: "signature", value: "sig" } },
+        { type: "text", text: "answer" },
+      ],
+    });
+    await h1.flushPersistence();
+    await h1.stop();
+
+    const h2 = await makeHarness(db, "reason2");
+    await h2.start();
+    const restored = await h2.restoreSession(session.id);
+    expect(restored.reasoning).toEqual({ effort: "high", budgetTokens: 2_000 });
+    expect(restored.reasoningIgnored).toBe("gateway ignored thinking");
+    const assistant = h2.history
+      .read(session.id)
+      .find((message) => message.role === "assistant");
+    expect(assistant?.blocks).toEqual([
+      { type: "reasoning", text: "signed", opaque: { kind: "signature", value: "sig" } },
+      { type: "text", text: "answer" },
+    ]);
+    await h2.stop();
+  });
+
   test("rejects history.restore on a non-restoring session", async () => {
     const dir = await tempDir();
     const h = await makeHarness(join(dir, "harness.sqlite"), "reject");

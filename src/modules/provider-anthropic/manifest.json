@@ -11,13 +11,15 @@
     {
       "cap": "secrets.read",
       "names": [
-        "ANTHROPIC_API_KEY"
+        "ANTHROPIC_API_KEY",
+        "OPENCODE_API_KEY"
       ]
     },
     {
       "cap": "net",
       "hosts": [
-        "api.anthropic.com"
+        "api.anthropic.com",
+        "opencode.ai"
       ]
     }
   ],

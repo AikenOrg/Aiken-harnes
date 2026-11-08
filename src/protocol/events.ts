@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { CancelBy, HarnessError, StopReason, Usage } from "./common.ts";
+import { reasoningParamsSchema } from "./reasoning.ts";
 
 /**
  * イベントペイロードの版。全ペイロードに `v: 1` を必須で載せる。
@@ -8,6 +9,8 @@ import type { CancelBy, HarnessError, StopReason, Usage } from "./common.ts";
 export const CORE_EVENT_VERSION = 1 as const;
 
 const v = z.literal(CORE_EVENT_VERSION);
+/** model.delta は kind 追加に伴い v2。イベント種別ごとに版を持つ。 */
+const v2 = z.literal(2);
 
 const errorSchema: z.ZodType<HarnessError> = z.object({
   code: z.string(),
@@ -18,6 +21,7 @@ const usageSchema: z.ZodType<Usage> = z.object({
   input: z.number().int().nonnegative(),
   output: z.number().int().nonnegative(),
   cacheRead: z.number().int().nonnegative().optional(),
+  reasoning: z.number().int().nonnegative().optional(),
 });
 
 const cancelBySchema: z.ZodType<CancelBy> = z.enum(["ai", "user", "timeout", "system"]);
@@ -47,6 +51,12 @@ export const eventSchemas = {
     parentId: z.string().optional(),
     model: z.string(),
     autoWake: z.boolean().optional(),
+    reasoning: reasoningParamsSchema.optional(),
+  }),
+  "session.reasoning": z.object({
+    v,
+    reasoning: reasoningParamsSchema.nullable().optional(),
+    ignored: z.string().optional(),
   }),
   "session.closed": z.object({
     v,
@@ -84,9 +94,10 @@ export const eventSchemas = {
     promptHash: z.string(),
   }),
   "model.delta": z.object({
-    v,
+    v: v2,
     turnId: z.string(),
     text: z.string(),
+    kind: z.enum(["text", "reasoning"]),
   }),
   "model.completed": z.object({
     v,
@@ -287,6 +298,7 @@ export const EVENT_DESCRIPTIONS = {
   "user.message": "ユーザー入力。",
   "user.cancel": "ユーザーによるキャンセル要求。",
   "session.created": "セッション作成。",
+  "session.reasoning": "セッションの reasoning 設定、または指定が無視されたことを通知する。",
   "session.closed": "セッション終了。",
   "session.forked": "履歴を複製して分岐。",
   "session.deleted": "セッションを削除した。history-store / result-store は連動して掃除する。",
@@ -294,7 +306,7 @@ export const EVENT_DESCRIPTIONS = {
   "turn.started": "ターン開始。",
   "turn.ended": "ターン終了。",
   "model.requested": "モデル呼び出しの直前。",
-  "model.delta": "ストリーミング差分。既定では購読されない。",
+  "model.delta": "ストリーミング差分。kind で本文と reasoning を区別する（v2）。既定では購読されない。",
   "model.completed": "モデルストリーム完了。",
   "model.failed": "モデル呼び出しの失敗。",
   "tool.requested": "ツール呼び出しの要求。引数は tool.before フックで扱う。",

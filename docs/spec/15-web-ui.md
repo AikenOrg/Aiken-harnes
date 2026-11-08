@@ -98,6 +98,7 @@ type Response =
 | `session.delete` | `{sessionId}` | `closed` のみ |
 | `session.send` | `{sessionId, text}` | 入力をキューへ積む |
 | `session.cancel` | `{sessionId}` | 現在のターンを中断 |
+| `session.setReasoning` | `{sessionId, reasoning}` | reasoning の強度。`null` で既定へ戻す |
 | `history.read` | `{sessionId, limit?, before?}` | 履歴のページング |
 | `job.list` | `{sessionId}` | ジョブ一覧 |
 | `job.cancel` | `{jobId}` | 実行中ジョブのキャンセル |
@@ -131,7 +132,8 @@ M5 では `0.0.0.0` を指定しても、`Origin` / `Host` は loopback のま�
 1 ページ。左がセッションの木、中央が会話、右がジョブ / イベントのタブ。
 
 - 左: 親子の入れ子、状態チップ、新規・復元・閉じる・削除。
-- 中央: メッセージ、ツール呼び出し / 結果の折りたたみ、`interrupted` 表示、ストリーミング、入力欄、キャンセル。
+- 中央: メッセージ、reasoning ブロック（ストリーミング中は展開、完了後は折りたたみ）、ツール呼び出し / 結果の折りたたみ、`interrupted` 表示、ストリーミング、入力欄、キャンセル。
+- reasoning の表示オン/オフ（既定オン）と、セッションごとの強度選択。モデルの `reasoning.efforts` にある値だけを出す。無視された場合は警告を表示する。
 - 右: ジョブ（状態、ツール、経過時間、キャンセル、結果）とイベント（種別フィルタ、新しい順、`model.delta` を除く）。
 - モーダル: モジュール承認（権限、変更、警告、承認 / 拒否）。
 

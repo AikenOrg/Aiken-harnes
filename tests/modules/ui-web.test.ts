@@ -70,6 +70,15 @@ class FakeBackend implements UiBackend {
     if (!session) throw new Error("not found");
     return session;
   }
+  async setReasoning(
+    sessionId: string,
+    reasoning?: { effort?: "off" | "low" | "medium" | "high" | "max"; budgetTokens?: number },
+  ): Promise<void> {
+    const session = this.sessions.find((item) => item.id === sessionId);
+    if (!session) throw new Error("not found");
+    if (reasoning === undefined) delete session.reasoning;
+    else session.reasoning = reasoning;
+  }
   async closeSession(sessionId: string): Promise<void> {
     const session = this.sessions.find((item) => item.id === sessionId);
     if (session) session.state = "closed";
@@ -300,6 +309,19 @@ describe("ui-web protocol", () => {
     const cancelled = await client.command("session.cancel", { sessionId: session.id });
     expect(cancelled.ok).toBe(true);
     expect(backend.cancelled).toContain(session.id);
+
+    const reasoning = await client.command("session.setReasoning", {
+      sessionId: session.id,
+      reasoning: { effort: "high" },
+    });
+    expect(reasoning.ok).toBe(true);
+    expect((reasoning.result as Session).reasoning).toEqual({ effort: "high" });
+    const cleared = await client.command("session.setReasoning", {
+      sessionId: session.id,
+      reasoning: null,
+    });
+    expect(cleared.ok).toBe(true);
+    expect((cleared.result as Session).reasoning).toBeUndefined();
 
     const jobs = await client.command("job.list", { sessionId: session.id });
     expect(jobs.ok).toBe(true);

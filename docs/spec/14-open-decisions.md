@@ -88,6 +88,13 @@
 | D82 | ui ロール API | `session.list/models/send/cancel`、`jobs.list/read/cancel` を追加。書き込み系は `ui` ロール限定 | 確定 |
 | D83 | クライアント | 素の TS + `@material/web`。`components/` ラッパー経由でのみ `<md-*>` を使う | 確定 |
 | D84 | 配色 | `seedColor` から `@material/material-color-utilities` でライト/ダークを生成 | 確定 |
+| D85 | reasoning の保存 | `Message` の reasoning ブロックとして保存。SQLite は `content_json` のまま | 確定 |
+| D86 | `model.delta` の版 | イベント種別ごとに版を持つ。`model.delta` のみ v2 | 確定 |
+| D87 | reasoning の優先順位 | config → セッション → `agent.spawn` | 確定 |
+| D88 | reasoning 設定の永続化 | `sessions.meta_json` に保存し、復元後も維持 | 確定 |
+| D89 | Anthropic thinking | 順序を保持し、署名なしは返送しない。redacted は opaque で返送 | 確定 |
+| D90 | reasoning 非対応 | エラーにせず無視し、`reasoning_ignored` とセッション診断に残す | 確定 |
+| D91 | reasoning の UI | モデルの実測能力があるものだけ強度選択を出す。MiniMax OpenAI 経路は非対応 | 確定 |
 
 ## 決定の要点
 

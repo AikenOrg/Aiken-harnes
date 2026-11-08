@@ -5,6 +5,7 @@ import type { EventEnvelope } from "../../protocol/events.ts";
 import type { Job, JobResult, JobStatus } from "../../protocol/jobs.ts";
 import type { Message } from "../../protocol/messages.ts";
 import type { ModelInfo } from "../../protocol/provider.ts";
+import type { ReasoningParams } from "../../protocol/reasoning.ts";
 import type { Session } from "../../protocol/session.ts";
 import {
   optionalNumber,
@@ -33,6 +34,7 @@ export type UiBackend = {
   listJobs(sessionId: string, status?: JobStatus): Promise<Job[]>;
   createSession(model: string): Promise<Session>;
   restoreSession(sessionId: string): Promise<Session>;
+  setReasoning(sessionId: string, reasoning?: ReasoningParams): Promise<void>;
   closeSession(sessionId: string): Promise<void>;
   deleteSession(sessionId: string): Promise<void>;
   send(sessionId: string, text: string): Promise<void>;
@@ -276,6 +278,31 @@ export function createUiServer(backend: UiBackend, config: UiWebConfig = {}): Ui
       }
       case "session.restore":
         return backend.restoreSession(requiredString(payload.sessionId, "sessionId"));
+      case "session.setReasoning": {
+        const sessionId = requiredString(payload.sessionId, "sessionId");
+        const raw = payload.reasoning;
+        let reasoning: ReasoningParams | undefined;
+        if (raw !== null && raw !== undefined) {
+          const value = recordOf(raw);
+          const effort = optionalString(value.effort);
+          const budgetTokens = optionalNumber(value.budgetTokens);
+          if (
+            effort !== undefined &&
+            !["off", "low", "medium", "high", "max"].includes(effort)
+          ) {
+            throw new Error(`invalid reasoning effort: ${effort}`);
+          }
+          reasoning = {};
+          if (effort !== undefined) {
+            reasoning.effort = effort as NonNullable<ReasoningParams["effort"]>;
+          }
+          if (budgetTokens !== undefined) reasoning.budgetTokens = budgetTokens;
+        }
+        await backend.setReasoning(sessionId, reasoning);
+        const session = (await backend.listSessions()).find((item) => item.id === sessionId);
+        if (!session) throw new Error(`session not found: ${sessionId}`);
+        return session;
+      }
       case "session.close":
         await backend.closeSession(requiredString(payload.sessionId, "sessionId"));
         return { closed: true };

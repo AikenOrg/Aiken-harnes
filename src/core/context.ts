@@ -27,6 +27,7 @@ import type { Message, NewMessage } from "../protocol/messages.ts";
 import type { Session } from "../protocol/session.ts";
 import type { PromptSegmentInput } from "../protocol/prompt.ts";
 import type { Provider } from "../protocol/provider.ts";
+import type { ReasoningParams } from "../protocol/reasoning.ts";
 import { eventMatches, type EventBus } from "./bus.ts";
 import type { HistoryManager } from "./history.ts";
 import type { HookRunner } from "./hooks.ts";
@@ -370,6 +371,11 @@ export function createModuleContext(
     setModel: (sessionId, model) => {
       requireCap("session.manage");
       options.sessions.setModel(sessionId, model);
+    },
+    setReasoning: (sessionId, params?: ReasoningParams) => {
+      if (!options.permissions.has(moduleName, "session.input")) requireRole("ui");
+      options.sessions.setReasoning(sessionId, params);
+      return Promise.resolve();
     },
     send: (sessionId, text) => {
       requireCap("session.input");

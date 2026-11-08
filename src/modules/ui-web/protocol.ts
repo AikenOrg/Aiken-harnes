@@ -62,6 +62,11 @@ export type JobReadOptions = {
   limit?: number;
 };
 
+export type ReasoningCommandPayload = {
+  sessionId: string;
+  reasoning?: { effort?: "off" | "low" | "medium" | "high" | "max"; budgetTokens?: number } | null;
+};
+
 export type HistoryReadResult = {
   messages: Message[];
   count: number;

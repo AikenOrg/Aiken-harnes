@@ -59,6 +59,15 @@
 - 完了条件: [15-web-ui.md](15-web-ui.md) の受け入れテスト。
 - 詳細は [../impl/m5.md](../impl/m5.md)。
 
+### M5b: reasoning (実装済み 2026-11-08)
+
+- `ModelEvent` / `Message` / `usage` に reasoning を追加
+- `model.delta` v2 (`kind`)
+- config / セッション / `agent.spawn` の強度設定
+- OpenAI 互換の `reasoning_content`、Anthropic の thinking/signature/redacted
+- UI の reasoning 表示・強度選択、CLI `--show-reasoning`
+- 詳細と実 API 検証表は [../impl/m5b.md](../impl/m5b.md)。
+
 ### M6: 堅牢化
 
 - Windows での動作確認 (パス、シェル、シグナル)

@@ -5,6 +5,7 @@ import "@material/web/dialog/dialog.js";
 import "@material/web/list/list.js";
 import "@material/web/list/list-item.js";
 import "@material/web/progress/linear-progress.js";
+import "@material/web/switch/switch.js";
 import "@material/web/tabs/primary-tab.js";
 import "@material/web/tabs/tabs.js";
 import "@material/web/textfield/outlined-text-field.js";
@@ -184,6 +185,37 @@ export function createStatusChip(state: string): HTMLElement {
   chip.className = `status-chip status-${state}`;
   chip.textContent = state;
   return chip;
+}
+
+export type SwitchHandle = {
+  element: HTMLElement;
+  selected: boolean;
+};
+
+/** @material/web のスイッチ。 */
+export function createSwitch(
+  label: string,
+  selected: boolean,
+  onChange: (value: boolean) => void,
+): SwitchHandle {
+  const wrapper = document.createElement("label");
+  wrapper.className = "ui-switch";
+  const control = document.createElement("md-switch") as HTMLElement & { selected: boolean };
+  control.selected = selected;
+  control.addEventListener("change", () => onChange(control.selected));
+  const text = document.createElement("span");
+  text.textContent = label;
+  wrapper.append(control, text);
+  const handle: SwitchHandle = {
+    element: wrapper,
+    get selected() {
+      return control.selected;
+    },
+    set selected(value: boolean) {
+      control.selected = value;
+    },
+  };
+  return handle;
 }
 
 export type DialogHandle = {

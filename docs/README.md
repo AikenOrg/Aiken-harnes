@@ -28,6 +28,7 @@
 | 17 | [impl/m4a.md](impl/m4a.md) | approvals.json と承認フローの実装 |
 | 18 | [impl/m4b.md](impl/m4b.md) | サブエージェントの実装 |
 | 19 | [impl/m5.md](impl/m5.md) | Web UI (`ui-web`) の実装 |
+| 20 | [impl/m5b.md](impl/m5b.md) | reasoning (thinking) の表示と設定 |
 | — | [adr/](adr/) | 環境・ツール選定の記録 |
 
 ## ドキュメントのルール

@@ -50,6 +50,7 @@ created -> restoring -> idle
   2. 親セッションが `close` されたら、子孫も再帰的に閉じる。
 - `agent.close` は `agent.spawn` 権限を必要とし、対象は自分の子孫のみ。
 - `session.close` は `session.manage` を必要とし、子孫も再帰的に閉じる。
+- reasoning の強度は、config のモデル既定 → セッション上書き → `agent.spawn({reasoning})` の順で決まる。セッション上書きは `meta_json` に保存する。
 - サブエージェントの `autoWake` は既定 `true`。誰も入力しないため、完了通知で起こさないと止まる。`agent.spawn` の `autoWake` で上書きできる。
 
 ### 1.4 fork と spawn

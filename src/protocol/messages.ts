@@ -7,6 +7,17 @@ export type TextBlock = {
   text: string;
 };
 
+/**
+ * モデルの reasoning / thinking。
+ * `opaque` は Anthropic の signature や redacted_thinking の data など、
+ * プロバイダーが次のリクエストで必要とする不透明データ。
+ */
+export type ReasoningBlock = {
+  type: "reasoning";
+  text: string;
+  opaque?: unknown;
+};
+
 export type ToolCallBlock = {
   type: "tool_call";
   id: string;
@@ -31,7 +42,12 @@ export type NotificationBlock = {
   entries: JobNotification[];
 };
 
-export type Block = TextBlock | ToolCallBlock | ToolResultBlock | NotificationBlock;
+export type Block =
+  | TextBlock
+  | ReasoningBlock
+  | ToolCallBlock
+  | ToolResultBlock
+  | NotificationBlock;
 
 export type Message = {
   id: string;

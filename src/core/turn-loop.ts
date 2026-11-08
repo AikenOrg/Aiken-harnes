@@ -1,6 +1,7 @@
 import { ERROR_CODES, type CancelBy, type HarnessError } from "../protocol/common.ts";
 import type { Block, NewMessage } from "../protocol/messages.ts";
 import type { ModelEvent, ModelRequest, ModelInfo } from "../protocol/provider.ts";
+import type { ReasoningParams } from "../protocol/reasoning.ts";
 import type { Session } from "../protocol/session.ts";
 import type { JobNotification } from "../protocol/jobs.ts";
 import type { EventBus } from "./bus.ts";
@@ -33,6 +34,7 @@ export type TurnLoopOptions = {
   maxNotificationChars?: number;
   hasCompactor?: () => boolean;
   modelLimiter?: Semaphore;
+  reasoningFor?: (session: Session) => ReasoningParams | undefined;
 };
 
 type ActiveTurn = {
@@ -82,6 +84,7 @@ export class TurnLoop {
   #maxNotificationChars: number;
   #hasCompactor: () => boolean;
   #modelLimiter: Semaphore | undefined;
+  #reasoningFor: ((session: Session) => ReasoningParams | undefined) | undefined;
   #active = new Map<string, ActiveTurn>();
 
   constructor(options: TurnLoopOptions) {
@@ -101,6 +104,7 @@ export class TurnLoop {
     this.#maxNotificationChars = options.maxNotificationChars ?? 2000;
     this.#hasCompactor = options.hasCompactor ?? (() => false);
     this.#modelLimiter = options.modelLimiter;
+    this.#reasoningFor = options.reasoningFor;
   }
 
   isActive(sessionId: string): boolean {
@@ -176,12 +180,14 @@ export class TurnLoop {
           });
         });
 
+        const reasoning = this.#reasoningFor?.(session);
         const request: ModelRequest = {
           model: session.model,
           system: segments.segments,
           messages: this.#history.read(session.id),
           tools: this.#tools.specs(session.toolNames),
           sessionId: session.id,
+          ...(reasoning !== undefined ? { params: { reasoning } } : {}),
         };
 
         this.#bus.emit(
@@ -198,9 +204,33 @@ export class TurnLoop {
         );
 
         let responseText = "";
+        let reasoningText = "";
+        let reasoningOpaque: unknown;
+        const reasoningBlocks: Array<{ text: string; opaque?: unknown }> = [];
+        const flushReasoning = (): void => {
+          if (reasoningText.length === 0 && reasoningOpaque === undefined) return;
+          const block: { text: string; opaque?: unknown } = { text: reasoningText };
+          if (reasoningOpaque !== undefined) block.opaque = reasoningOpaque;
+          reasoningBlocks.push(block);
+          reasoningText = "";
+          reasoningOpaque = undefined;
+        };
+        const reasoningBlockList = (): Block[] => {
+          flushReasoning();
+          return reasoningBlocks.map((item) => {
+            const block: Block = { type: "reasoning", text: item.text };
+            if (item.opaque !== undefined) block.opaque = item.opaque;
+            return block;
+          });
+        };
+        const interruptedBlocks = (): Block[] => {
+          const blocks = reasoningBlockList();
+          if (responseText.length > 0) blocks.push({ type: "text", text: responseText });
+          return blocks;
+        };
         let stopReason: "end" | "tool_use" | "length" | "error" = "end";
         const toolCalls = new Map<string, { id: string; name: string; args: unknown }>();
-        const usage = { input: 0, output: 0, cacheRead: 0 };
+        const usage = { input: 0, output: 0, cacheRead: 0, reasoning: 0 };
 
         const provider = this.#providers.resolve(session.model);
         const providerModule = this.#providers.moduleOf(session.model);
@@ -223,13 +253,37 @@ export class TurnLoop {
             this.#consumeModelEvent(event, {
               onText: (delta) => {
                 responseText += delta;
-                this.#bus.emit("model.delta", { v: 1, turnId, text: delta }, { source: "core", sessionId: session.id });
+                this.#bus.emit(
+                  "model.delta",
+                  { v: 2, turnId, text: delta, kind: "text" },
+                  { source: "core", sessionId: session.id },
+                );
+              },
+              onReasoning: (delta) => {
+                reasoningText += delta;
+                if (session.reasoningIgnored !== undefined) {
+                  this.#sessions.setReasoningIgnored(session.id, "");
+                }
+                this.#bus.emit(
+                  "model.delta",
+                  { v: 2, turnId, text: delta, kind: "reasoning" },
+                  { source: "core", sessionId: session.id },
+                );
+              },
+              onReasoningEnd: (opaque) => {
+                if (opaque !== undefined) reasoningOpaque = opaque;
+                flushReasoning();
+              },
+              onReasoningIgnored: (reason) => {
+                this.#sessions.setReasoningIgnored(session.id, reason);
+                this.#log.warn(`reasoning ignored for ${session.model}: ${reason}`);
               },
               onToolCall: (call) => toolCalls.set(call.id, call),
               onUsage: (next) => {
                 usage.input += next.input;
                 usage.output += next.output;
                 usage.cacheRead += next.cacheRead ?? 0;
+                usage.reasoning += next.reasoning ?? 0;
               },
               onStop: (reason) => {
                 stopReason = reason;
@@ -238,10 +292,11 @@ export class TurnLoop {
           }
         } catch (error) {
           if (controller.signal.aborted) {
-            if (responseText.length > 0) {
+            const blocks = interruptedBlocks();
+            if (blocks.length > 0) {
               this.#history.append(session.id, {
                 role: "assistant",
-                blocks: [{ type: "text", text: responseText }],
+                blocks,
                 interrupted: true,
               });
             }
@@ -266,14 +321,15 @@ export class TurnLoop {
         }
 
         if (controller.signal.aborted) {
-          if (responseText.length > 0) {
+          const blocks = interruptedBlocks();
+          if (blocks.length > 0) {
             this.#history.append(session.id, {
               role: "assistant",
-              blocks: [{ type: "text", text: responseText }],
+              blocks,
               interrupted: true,
             });
           }
-          end("cancelled");
+          end("cancelled", responseText);
           return result;
         }
 
@@ -286,6 +342,7 @@ export class TurnLoop {
               input: usage.input,
               output: usage.output,
               ...(usage.cacheRead > 0 ? { cacheRead: usage.cacheRead } : {}),
+              ...(usage.reasoning > 0 ? { reasoning: usage.reasoning } : {}),
             },
             stop: stopReason,
           },
@@ -308,7 +365,7 @@ export class TurnLoop {
           return result;
         }
 
-        const blocks: Block[] = [];
+        const blocks: Block[] = reasoningBlockList();
         if (responseText.length > 0) blocks.push({ type: "text", text: responseText });
         for (const call of toolCalls.values()) {
           blocks.push({ type: "tool_call", id: call.id, name: call.name, args: call.args });
@@ -345,18 +402,30 @@ export class TurnLoop {
     event: ModelEvent,
     handlers: {
       onText: (delta: string) => void;
+      onReasoning: (delta: string) => void;
+      onReasoningEnd: (opaque?: unknown) => void;
+      onReasoningIgnored: (reason: string) => void;
       onToolCall: (call: { id: string; name: string; args: unknown }) => void;
-      onUsage: (usage: { input: number; output: number; cacheRead?: number }) => void;
+      onUsage: (usage: {
+        input: number;
+        output: number;
+        cacheRead?: number;
+        reasoning?: number;
+      }) => void;
       onStop: (reason: "end" | "tool_use" | "length" | "error") => void;
     },
   ): void {
     if (event.type === "text") handlers.onText(event.delta);
+    else if (event.type === "reasoning") handlers.onReasoning(event.delta);
+    else if (event.type === "reasoning_end") handlers.onReasoningEnd(event.opaque);
+    else if (event.type === "reasoning_ignored") handlers.onReasoningIgnored(event.reason);
     else if (event.type === "tool_call") handlers.onToolCall({ id: event.id, name: event.name, args: event.args });
     else if (event.type === "usage") {
       handlers.onUsage({
         input: event.input,
         output: event.output,
         ...(event.cacheRead !== undefined ? { cacheRead: event.cacheRead } : {}),
+        ...(event.reasoning !== undefined ? { reasoning: event.reasoning } : {}),
       });
     } else if (event.type === "stop") handlers.onStop(event.reason);
   }

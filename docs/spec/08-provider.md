@@ -15,6 +15,13 @@ type ModelInfo = {
   maxOutput?: number;
   supportsTools?: boolean;
   supportsCache?: boolean;
+  /** reasoning / thinking の能力。UI と送信可否に使う。 */
+  reasoning?: {
+    supported: boolean;
+    efforts?: Array<"off" | "low" | "medium" | "high" | "max">;
+    toggle?: boolean;
+    budget?: boolean;
+  };
 };
 
 type ModelRequest = {
@@ -24,13 +31,20 @@ type ModelRequest = {
   tools: ToolSpec[];
   /** プロバイダーがルーティング/キャッシュに使えるセッション ID。 */
   sessionId?: string;
-  params?: { temperature?: number; maxTokens?: number };
+  params?: {
+    temperature?: number;
+    maxTokens?: number;
+    reasoning?: { effort?: "off" | "low" | "medium" | "high" | "max"; budgetTokens?: number };
+  };
 };
 
 type ModelEvent =
   | { type: "text"; delta: string }
+  | { type: "reasoning"; delta: string }
+  | { type: "reasoning_end"; opaque?: unknown }
+  | { type: "reasoning_ignored"; reason: string }
   | { type: "tool_call"; id: string; name: string; args: unknown }
-  | { type: "usage"; input: number; output: number; cacheRead?: number }
+  | { type: "usage"; input: number; output: number; cacheRead?: number; reasoning?: number }
   | { type: "stop"; reason: "end" | "tool_use" | "length" | "error" };
 ```
 
@@ -58,6 +72,7 @@ type Message = {
 
 type Block =
   | { type: "text"; text: string }
+  | { type: "reasoning"; text: string; opaque?: unknown }
   | { type: "tool_call"; id: string; name: string; args: unknown }
   | { type: "tool_result"; toolCallId: string; name: string; content: string; isError?: boolean }
   | { type: "notification"; entries: JobNotification[] };
@@ -70,7 +85,9 @@ type Block =
 
 ## 3. ストリームの扱い
 
-- `text` は到着順に `model.delta` として中継する (購読者のみ)。
+- `text` は到着順に `model.delta` (`kind: "text"`) として中継する (購読者のみ)。
+- `reasoning` は `model.delta` (`kind: "reasoning"`) として中継し、履歴には本文と分けて保存する。`reasoning_end.opaque` は署名や redacted data を保持する。
+- `reasoning_ignored` はモデルが指定を受け付けなかったことを示す。セッションの診断と UI に残す。
 - `tool_call` はコアが蓄積し、`stop` 後にまとめて実行する。プロバイダーは 1 つの tool_call を分割して返してよいが、`id` は同一にする。
 - `usage` は複数回来てよい。コアは加算する。
 - `stop.reason` の解釈:
@@ -102,7 +119,7 @@ type Block =
 
 ## 6. リトライとタイムアウト
 
-- 初版では自動リトライしない。`model.failed` を発行し、UI が再試行を判断する。
+- reasoning 指定が原因と判定できる 400 だけ、指定を外して 1 回再試行する。それ以外は自動リトライしない。`model.failed` を発行し、UI が再試行を判断する。
 - プロバイダー側の HTTP タイムアウトはモジュールの責務。コアは AbortSignal で中断できる。
 - レート制限・課金エラーの分類は **TBD**。
 
@@ -117,6 +134,15 @@ src/modules/provider-openai/
 - プロバイダーは `critical: true` を推奨する。落ちたら会話が成立しないため。
 - ストリーム中の接続断は `model.failed` を発行し、critical なら `core.stopping` へ進む。
 
+## 7.1 reasoning の共通規則
+
+- reasoning の強度は config → セッション → `agent.spawn` の順で上書きされる。
+- 履歴の assistant では reasoning ブロックを text / tool_call より前に置く。Anthropic はこの順序を要求する。
+- 署名のない Anthropic thinking は返送しない。redacted_thinking は表示せず opaque として返送する。
+- `budget_tokens` は `max_tokens / 2` 以下に丸める。
+- thinking 有効時は temperature などの制約に注意し、衝突する指定を送らない。
+- 対応しないモデル・指定はエラーにせず無視し、`reasoning_ignored` と診断ログに残す。
+
 ## 8. Anthropic 実装
 
 `src/modules/provider-anthropic` が Messages API のストリーミング実装。
@@ -128,6 +154,13 @@ src/modules/provider-openai/
 - SSE の `input_json_delta` を蓄積し、`content_block_stop` で `tool_call` として返す。
 - HTTP 400 の「prompt is too long」系は `code: "context_overflow"` に変換する。
 - `config.logRaw: true` でリクエスト/SSE イベントを `ctx.log.debug` に出す。ヘッダー (API キー) はログに含めない。
+- `stream: true` を必須で送る。
+- `config.authStyle` は `x-api-key`（既定）または `bearer`。OpenCode Go の Anthropic 経路は `bearer` と `baseUrl` 上書きを使う。
+- `config.reasoningStyle` は `anthropic_thinking`（既定）または `none`。
+- `config.echoReasoning` は `never` / `tool_turns` / `always`（Anthropic の既定は `always`）。署名つき thinking を順序どおり返送する。
+- thinking 有効時は `thinking: {type:"enabled", budget_tokens}` を送り、`max_tokens / 2` 以下に丸める。`max_tokens < 2048` では無効化する。
+- `redacted_thinking` は `opaque` として保存し、そのまま返送する。署名のない thinking は返送しない。
+- `x-opencode-session` をセッション ID として送る。
 
 ```jsonc
 {
@@ -156,6 +189,12 @@ src/modules/provider-openai/
 - `usage.prompt_tokens_details.cached_tokens` を `cacheRead` として返す。
 - 400 のコンテキスト長超過は `context_overflow` に変換する。
 - `config.logRaw` でリクエスト/SSE を `ctx.log.debug` に出す。Authorization ヘッダーはログに出さない。
+- `config.reasoningStyle`: `effort_param`（既定）/ `thinking_object` / `both` / `anthropic_thinking` / `none`。
+- `config.effortMap`: 共通 effort をモデル固有値へ変換する。
+- `config.echoReasoning`: `never`（既定）/ `tool_turns` / `always`。assistant の `reasoning_content` として返送する。
+- `config.reasoningField`: 返送フィールド名。既定 `reasoning_content`。
+- `config.reasoningRetry`: reasoning 起因の 400 のとき、指定を外して 1 回だけ再試行する。
+- ストリームの `reasoning_content` / `reasoning` を `reasoning` イベントに変換し、`completion_tokens_details.reasoning_tokens` を `usage.reasoning` に載せる。
 
 ```jsonc
 {

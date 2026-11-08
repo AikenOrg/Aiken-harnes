@@ -5,7 +5,16 @@
     "contextWindow": 1048576,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "reasoning": {
+      "supported": true,
+      "efforts": [
+        "low",
+        "medium",
+        "high",
+        "max"
+      ]
+    }
   },
   {
     "id": "opencode-go/cat-jam-free",
@@ -29,7 +38,10 @@
     "contextWindow": 1048576,
     "maxOutput": 270000,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "reasoning": {
+      "supported": false
+    }
   },
   {
     "id": "opencode-go/deepseek-v4-pro",
@@ -37,7 +49,15 @@
     "contextWindow": 1000000,
     "maxOutput": 384000,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "reasoning": {
+      "supported": true,
+      "efforts": [
+        "high",
+        "max"
+      ],
+      "toggle": true
+    }
   },
   {
     "id": "opencode-go/deepseek-v4.1-flash",
@@ -45,7 +65,16 @@
     "contextWindow": 1000000,
     "maxOutput": 384000,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "reasoning": {
+      "supported": true,
+      "efforts": [
+        "low",
+        "high",
+        "max"
+      ],
+      "toggle": true
+    }
   },
   {
     "id": "opencode-go/gemini-4-argon",
@@ -77,7 +106,15 @@
     "contextWindow": 1000000,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "reasoning": {
+      "supported": true,
+      "efforts": [
+        "low",
+        "high",
+        "max"
+      ]
+    }
   },
   {
     "id": "opencode-go/glm-5.3-flash",
@@ -85,7 +122,15 @@
     "contextWindow": 1000000,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "reasoning": {
+      "supported": true,
+      "efforts": [
+        "low",
+        "high",
+        "max"
+      ]
+    }
   },
   {
     "id": "opencode-go/gpt-5.6-luna",
@@ -109,7 +154,15 @@
     "contextWindow": 500000,
     "maxOutput": 500000,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "reasoning": {
+      "supported": true,
+      "efforts": [
+        "low",
+        "medium",
+        "high"
+      ]
+    }
   },
   {
     "id": "opencode-go/hy3",
@@ -149,7 +202,10 @@
     "contextWindow": 262144,
     "maxOutput": 262144,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "reasoning": {
+      "supported": false
+    }
   },
   {
     "id": "opencode-go/kimi-k3",
@@ -157,7 +213,16 @@
     "contextWindow": 1048576,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "reasoning": {
+      "supported": true,
+      "efforts": [
+        "low",
+        "high",
+        "max"
+      ],
+      "toggle": true
+    }
   },
   {
     "id": "opencode-go/kimi-k3.1-pro",
@@ -229,7 +294,10 @@
     "contextWindow": 1000000,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "reasoning": {
+      "supported": false
+    }
   },
   {
     "id": "opencode-go/minimax-m3.1-flash",
@@ -277,7 +345,15 @@
     "contextWindow": 1000000,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "reasoning": {
+      "supported": true,
+      "efforts": [
+        "low",
+        "medium"
+      ],
+      "toggle": true
+    }
   },
   {
     "id": "opencode-go/qwen3.8-max",
@@ -285,7 +361,15 @@
     "contextWindow": 1000000,
     "maxOutput": 131072,
     "supportsTools": true,
-    "supportsCache": true
+    "supportsCache": true,
+    "reasoning": {
+      "supported": true,
+      "efforts": [
+        "low",
+        "medium"
+      ],
+      "toggle": true
+    }
   },
   {
     "id": "opencode-go/space-bunny",

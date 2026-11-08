@@ -38,6 +38,7 @@ function backendOf(ctx: ModuleContext): UiBackend {
     listJobs: (sessionId, status) => ctx.jobs.list(sessionId, status),
     createSession: (model) => ctx.session.create({ model }),
     restoreSession: (sessionId) => ctx.session.restore(sessionId),
+    setReasoning: (sessionId, reasoning) => ctx.session.setReasoning(sessionId, reasoning),
     closeSession: (sessionId) => ctx.session.close(sessionId),
     deleteSession: (sessionId) => ctx.session.delete(sessionId),
     send: (sessionId, text) => ctx.session.send(sessionId, text),

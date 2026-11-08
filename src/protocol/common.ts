@@ -9,6 +9,8 @@ export type Usage = {
   input: number;
   output: number;
   cacheRead?: number | undefined;
+  /** reasoning / thinking に使われたトークン数（返すモデルのみ）。 */
+  reasoning?: number | undefined;
 };
 
 /** イベント・ジョブ・ツールで共通に使うエラー表現。 */

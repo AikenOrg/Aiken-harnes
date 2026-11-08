@@ -15,6 +15,12 @@ function tools(ctx: { agent: AgentApi }) {
         model: z.string().optional(),
         tools: z.array(z.string()).optional(),
         autoWake: z.boolean().optional(),
+        reasoning: z
+          .object({
+            effort: z.enum(["off", "low", "medium", "high", "max"]).optional(),
+            budgetTokens: z.number().int().positive().optional(),
+          })
+          .optional(),
       }),
       handler: async (
         args: unknown,
@@ -27,6 +33,7 @@ function tools(ctx: { agent: AgentApi }) {
           model?: string;
           tools?: string[];
           autoWake?: boolean;
+          reasoning?: { effort?: "off" | "low" | "medium" | "high" | "max"; budgetTokens?: number };
         };
         const result = await ctx.agent.spawn({
           parentSessionId: toolCtx.sessionId,
@@ -36,6 +43,7 @@ function tools(ctx: { agent: AgentApi }) {
           ...(value.model !== undefined ? { model: value.model } : {}),
           ...(value.tools !== undefined ? { tools: value.tools } : {}),
           ...(value.autoWake !== undefined ? { autoWake: value.autoWake } : {}),
+          ...(value.reasoning !== undefined ? { reasoning: value.reasoning } : {}),
         });
         return { content: JSON.stringify(result), summary: `spawned ${result.sessionId}` };
       },

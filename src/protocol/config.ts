@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { reasoningParamsSchema } from "./reasoning.ts";
 
 /**
  * config.json のモジュール指定。
@@ -57,12 +58,31 @@ export const logConfigSchema = z.object({
   file: z.string().optional(),
 });
 
+export const modelSettingsSchema = z.object({
+  reasoning: reasoningParamsSchema.optional(),
+});
+
 export const configSchema = z.object({
   version: z.literal(1),
   modules: z.array(moduleEntrySchema),
-  models: z.object({
-    default: z.string().min(1),
-  }),
+  models: z
+    .object({
+      default: z.string().min(1),
+    })
+    .passthrough()
+    .superRefine((value, ctx) => {
+      for (const [key, entry] of Object.entries(value)) {
+        if (key === "default") continue;
+        const parsed = modelSettingsSchema.safeParse(entry);
+        if (!parsed.success) {
+          ctx.addIssue({
+            code: "custom",
+            path: [key],
+            message: "model settings must be an object with an optional reasoning field",
+          });
+        }
+      }
+    }),
   /** 起動時の復元方針。none: 何もしない。last: 直前のセッションを自動で開く。 */
   restore: z.enum(["none", "last"]).optional(),
   /** 開発用 --approve-all を許可するか。本番では false。 */
@@ -92,3 +112,4 @@ export type JobsConfig = z.infer<typeof jobsConfigSchema>;
 export type ShellConfig = z.infer<typeof shellConfigSchema>;
 export type ContextConfig = z.infer<typeof contextConfigSchema>;
 export type AgentsConfig = z.infer<typeof agentsConfigSchema>;
+export type ModelSettings = z.infer<typeof modelSettingsSchema>;

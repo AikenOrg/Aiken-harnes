@@ -4,6 +4,7 @@ import { configSchema, type HarnessConfig } from "../protocol/config.ts";
 import { ERROR_CODES } from "../protocol/common.ts";
 import type { CancelBy } from "../protocol/common.ts";
 import type { AgentSpawnOptions } from "../protocol/ctx.ts";
+import type { ReasoningParams } from "../protocol/reasoning.ts";
 import type { ModuleManifest } from "../protocol/manifest.ts";
 import type { ModelInfo } from "../protocol/provider.ts";
 import type { EventEnvelope } from "../protocol/events.ts";
@@ -64,6 +65,15 @@ type AgentLimits = {
 };
 
 /** 復元時に、結果の欠けた tool_call へ interrupted の tool_result を補う。 */
+
+function configuredReasoning(
+  config: HarnessConfig,
+  modelId: string,
+): ReasoningParams | undefined {
+  const entry = (config.models as Record<string, unknown>)[modelId];
+  if (typeof entry !== "object" || entry === null) return undefined;
+  return (entry as { reasoning?: ReasoningParams }).reasoning;
+}
 
 function agentError(code: string, message: string): Error & { code: string } {
   const error = new Error(message) as Error & { code: string };
@@ -242,6 +252,8 @@ export class Harness {
       maxNotificationChars: options.maxNotificationChars ?? config.jobs?.maxNotificationChars ?? 2000,
       hasCompactor: () => this.modules.hasRole("compactor"),
       modelLimiter: new Semaphore(this.#agentLimits.maxConcurrentModelCalls),
+      reasoningFor: (session) =>
+        session.reasoning ?? configuredReasoning(this.config, session.model),
     });
 
     this.bus.on("job.cancelled", (event) => {
@@ -373,13 +385,19 @@ export class Harness {
 
   createSession(
     model?: string,
-    options?: { parentId?: string; autoWake?: boolean; toolNames?: string[] },
+    options?: {
+      parentId?: string;
+      autoWake?: boolean;
+      toolNames?: string[];
+      reasoning?: ReasoningParams;
+    },
   ): Session {
     return this.sessions.create({
       model: model ?? this.config.models.default,
       ...(options?.parentId !== undefined ? { parentId: options.parentId } : {}),
       ...(options?.autoWake !== undefined ? { autoWake: options.autoWake } : {}),
       ...(options?.toolNames !== undefined ? { toolNames: options.toolNames } : {}),
+      ...(options?.reasoning !== undefined ? { reasoning: options.reasoning } : {}),
     });
   }
 
@@ -489,6 +507,7 @@ export class Harness {
       parentId: parent.id,
       autoWake: options.autoWake ?? true,
       toolNames,
+      ...(options.reasoning !== undefined ? { reasoning: options.reasoning } : {}),
     });
     if (prompt) {
       this.prompt.contributeForSession(

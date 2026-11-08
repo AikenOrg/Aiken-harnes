@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Message } from "../../src/protocol/messages.ts";
-import type { ModelRequest } from "../../src/protocol/provider.ts";
+import type { ModelInfo, ModelRequest } from "../../src/protocol/provider.ts";
 import type { PromptSegment } from "../../src/protocol/prompt.ts";
 import {
   OpenCodeGoProvider,
@@ -160,5 +160,151 @@ describe("OpenCode Go provider", () => {
       caught = error;
     }
     expect((caught as { code?: string }).code).toBe("context_overflow");
+  });
+});
+
+describe("OpenCode Go reasoning", () => {
+  const reasoningModel: ModelInfo = {
+    ...model,
+    reasoning: { supported: true, efforts: ["low", "high", "max"] },
+  };
+
+  test("builds effort/thinking/budget request shapes and applies effortMap", () => {
+    const base = request();
+    base.params = { temperature: 0.2, reasoning: { effort: "medium", budgetTokens: 6_000 } };
+    const effortBody = toOpenCodeGoRequest(
+      base,
+      config({ reasoningStyle: "effort_param", effortMap: { medium: "high" } }),
+      reasoningModel,
+    );
+    expect(effortBody.reasoning_effort).toBe("high");
+    expect(effortBody.thinking).toBeUndefined();
+    expect(effortBody.temperature).toBe(0.2);
+
+    const thinkingBody = toOpenCodeGoRequest(
+      base,
+      config({ reasoningStyle: "thinking_object" }),
+      reasoningModel,
+    );
+    expect(thinkingBody.thinking).toEqual({ type: "enabled" });
+    expect(thinkingBody.temperature).toBeUndefined();
+
+    const anthropicBody = toOpenCodeGoRequest(
+      base,
+      config({ reasoningStyle: "anthropic_thinking" }),
+      reasoningModel,
+    );
+    expect(anthropicBody.thinking).toEqual({ type: "enabled", budget_tokens: 2_048 });
+  });
+
+  test("echoes reasoning_content for tool turns when configured", () => {
+    const message: Message = {
+      id: "m1",
+      role: "assistant",
+      createdAt: 1,
+      blocks: [
+        { type: "reasoning", text: "thought" },
+        { type: "tool_call", id: "call_1", name: "read", args: { path: "a" } },
+      ],
+    };
+    const body = toOpenCodeGoRequest(
+      request([message]),
+      config({ echoReasoning: "always" }),
+      reasoningModel,
+    );
+    expect(body.messages[1]).toMatchObject({ role: "assistant", reasoning_content: "thought" });
+
+    const toolOnly = toOpenCodeGoRequest(
+      request([message]),
+      config({ echoReasoning: "tool_turns" }),
+      reasoningModel,
+    );
+    expect(toolOnly.messages[1]).toMatchObject({ reasoning_content: "thought" });
+  });
+
+  test("streams reasoning and reasoning tokens separately from text", async () => {
+    const sse = [
+      'data: {"choices":[{"delta":{"reasoning_content":"think"}}]}\n',
+      'data: {"choices":[{"delta":{"content":"answer"},"finish_reason":"stop"}]}\n',
+      'data: {"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":8,"completion_tokens_details":{"reasoning_tokens":5}}}\n',
+      "data: [DONE]\n",
+    ].join("");
+    const provider = new OpenCodeGoProvider({
+      config: config(),
+      getApiKey: () => "secret",
+      fetch: async () => new Response(sse, { status: 200 }),
+    });
+    const events = [];
+    for await (const event of provider.stream(request([]), new AbortController().signal)) events.push(event);
+    expect(events).toEqual([
+      { type: "reasoning", delta: "think" },
+      { type: "text", delta: "answer" },
+      { type: "usage", input: 10, output: 8, reasoning: 5 },
+      { type: "reasoning_end" },
+      { type: "stop", reason: "end" },
+    ]);
+  });
+
+  test("retries a reasoning-related 400 once without the parameter and remembers the model", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    let calls = 0;
+    const logs: string[] = [];
+    const provider = new OpenCodeGoProvider({
+      config: config({ reasoningRetry: true }),
+      getApiKey: () => "secret",
+      log: (message) => logs.push(message),
+      fetch: async (_input, init) => {
+        calls += 1;
+        bodies.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+        if (calls === 1) {
+          return new Response(
+            JSON.stringify({ error: { message: "invalid reasoning_effort", type: "invalid_request_error" } }),
+            { status: 400 },
+          );
+        }
+        return new Response('data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}\n', {
+          status: 200,
+        });
+      },
+    });
+    const reasoningRequest = request([]);
+    reasoningRequest.params = { reasoning: { effort: "high" } };
+    const first = [];
+    for await (const event of provider.stream(reasoningRequest, new AbortController().signal)) first.push(event);
+    expect(first[0]).toMatchObject({ type: "reasoning_ignored" });
+    expect(first.some((event) => event.type === "text")).toBe(true);
+    expect(bodies[0]?.reasoning_effort).toBe("high");
+    expect(bodies[1]?.reasoning_effort).toBeUndefined();
+    expect(logs.some((message) => message.includes("reasoning parameter rejected"))).toBe(true);
+
+    const second = [];
+    for await (const event of provider.stream(reasoningRequest, new AbortController().signal)) second.push(event);
+    expect(second[0]).toMatchObject({ type: "reasoning_ignored" });
+    expect(calls).toBe(3);
+    expect(bodies[2]?.reasoning_effort).toBeUndefined();
+  });
+
+  test("does not retry an unrelated 400", async () => {
+    let calls = 0;
+    const provider = new OpenCodeGoProvider({
+      config: config(),
+      getApiKey: () => "secret",
+      fetch: async () => {
+        calls += 1;
+        return new Response(JSON.stringify({ error: { message: "bad tool schema" } }), { status: 400 });
+      },
+    });
+    const reasoningRequest = request([]);
+    reasoningRequest.params = { reasoning: { effort: "high" } };
+    let caught: unknown;
+    try {
+      for await (const _event of provider.stream(reasoningRequest, new AbortController().signal)) {
+        // drain
+      }
+    } catch (error) {
+      caught = error;
+    }
+    expect(calls).toBe(1);
+    expect((caught as { code?: string }).code).toBe("api_error");
   });
 });

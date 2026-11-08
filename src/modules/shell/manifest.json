@@ -1,14 +1,39 @@
 {
   "name": "shell",
   "version": "0.1.0",
-  "roles": ["shell"],
+  "roles": [
+    "shell"
+  ],
   "critical": false,
   "runner": "inprocess",
   "main": "index.ts",
   "permissions": [
-    { "cap": "tool.register" },
-    { "cap": "tool.intercept" },
-    { "cap": "exec", "mode": "whitelist", "allow": ["echo", "sleep", "sh", "git", "bun", "ls", "cat"] }
+    {
+      "cap": "tool.register"
+    },
+    {
+      "cap": "tool.intercept"
+    },
+    {
+      "cap": "exec",
+      "mode": "whitelist",
+      "allow": [
+        "echo",
+        "sleep",
+        "sh",
+        "git",
+        "bun",
+        "ls",
+        "cat"
+      ]
+    }
   ],
-  "tools": [{ "name": "shell", "mode": "async", "timeoutMs": 300000 }]
+  "tools": [
+    {
+      "name": "shell",
+      "mode": "async",
+      "timeoutMs": 300000
+    }
+  ],
+  "builtin": true
 }

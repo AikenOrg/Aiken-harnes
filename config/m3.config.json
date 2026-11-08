@@ -3,21 +3,45 @@
   "modules": [
     {
       "use": "../src/modules/provider-opencode-go",
-      "config": { "model": "opencode-go/glm-5.3-flash" }
+      "config": {
+        "model": "opencode-go/glm-5.3-flash"
+      }
     },
     {
       "use": "../src/modules/store-sqlite",
-      "config": { "ttlDays": 30, "cleanupIntervalMs": 21600000 }
+      "config": {
+        "ttlDays": 30,
+        "cleanupIntervalMs": 21600000
+      }
     },
-    { "use": "../src/modules/tools-read" },
-    { "use": "../src/modules/shell" }
+    {
+      "use": "../src/modules/tools-read"
+    },
+    {
+      "use": "../src/modules/shell"
+    },
+    "../src/modules/ui-cli"
   ],
-  "models": { "default": "opencode-go/glm-5.3-flash" },
+  "models": {
+    "default": "opencode-go/glm-5.3-flash"
+  },
   "restore": "none",
-  "context": { "overflowRatio": 0.8 },
+  "context": {
+    "overflowRatio": 0.8
+  },
   "shell": {
     "mode": "whitelist",
-    "allow": ["ls", "cat", "git", "bun", "wc", "head", "echo", "printf", "sleep"]
+    "allow": [
+      "ls",
+      "cat",
+      "git",
+      "bun",
+      "wc",
+      "head",
+      "echo",
+      "printf",
+      "sleep"
+    ]
   },
   "jobs": {
     "defaultTimeoutMs": 300000,
@@ -29,6 +53,12 @@
     "maxNotificationChars": 2000,
     "resultTtlDays": 30
   },
-  "log": { "level": "info" },
-  "secrets": { "OPENCODE_API_KEY": { "env": "OPENCODE_API_KEY" } }
+  "log": {
+    "level": "info"
+  },
+  "secrets": {
+    "OPENCODE_API_KEY": {
+      "env": "OPENCODE_API_KEY"
+    }
+  }
 }

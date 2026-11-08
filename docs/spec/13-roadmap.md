@@ -40,12 +40,14 @@
 - 実装: `store-sqlite`、`session.restore`、`restore: "last"`、TTL 掃除。詳細は [../impl/m3.md](../impl/m3.md)。
 - 未実装: Web UI。
 
-### M4: 権限と compaction
+### M4: 権限と compaction (承認は実装済み)
 
 - 承認フロー、危険な組み合わせの警告、承認記録
 - compactor ロールと `compaction.decide`
 - shell のホワイトリストと `tool.before` 承認 (whitelist/full は実装済み。承認 UI が未実装)
 - 完了条件: `history.rewrite` が compactor 以外で拒否される。E4〜E6 が通る。
+- 実装済み: approvals.json、ハッシュ照合、差分、警告、builtin、`--approve-all`。詳細は [../impl/m4a.md](../impl/m4a.md)。
+- 未実装: compaction、Web UI の承認画面。
 
 ### M5: 堅牢化
 

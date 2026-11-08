@@ -149,17 +149,27 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 
 ## 4. 承認
 
-### 4.1 提示内容
+### 4.1 フロー
+
+1. コアが manifest とコードを読み、コードを import する前にハッシュを計算する。
+2. `approvals.json` の記録と照合する。
+3. 記録なし / コード変更 / 権限変更なら、`ui` ロールの `requestApproval(request)` を呼ぶ。
+4. 承認なら記録を保存して `permission.granted`、拒否なら `permission.denied`。
+5. `critical: true` の拒否は起動エラー。それ以外は `module.disabled` で続行。
+6. builtin は承認を省略し、`permission.granted source:"builtin"` を発行する。
+
+### 4.2 提示内容
 
 - モジュール名 / バージョン / 取得元
 - 要求ロールと排他チェック結果
 - 要求権限の一覧 (引数付き)
+- 再承認のときは変更点 (code changed / + permission / - permission / roles・talksTo 変更)
 - `critical` の有無
-- 重い権限 (`tool.intercept`、`exec`、`history.rewrite` など) の明示
+- 重い権限 (`tool.intercept`、`exec`、`secrets.read`、`history.rewrite`、`history.restore`、`session.delete`) の明示
 - 危険な組み合わせの警告
 - 「fs / net / env / exec はまだ強制されない」旨
 
-### 4.2 保存先
+### 4.3 保存先
 
 承認記録は config.json とは別のファイルに置く。
 
@@ -170,11 +180,15 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 
 - **プロジェクトの config とは分ける。** config を共有したり、AI がモジュールと一緒に config を書き換えたりしても、承認が付いてこないようにするため。
 - SQLite などのモジュール側ストアには置かない。権限の記録をモジュールに預けると循環する。コア自身が管理する。
-- 記録は「モジュール名 + コードの内容ハッシュ + 承認した権限のハッシュ」。
-- コードまたは権限が変わったら再承認。
+- 記録は「モジュール名 + codeHash + permissionsHash + permissions + approvedAt」。
+- 形式は `{ "v": 1, "modules": { ... } }`。
+- 書き込みは一時ファイル + rename。書き込み直前に読み直す。
+- 壊れたファイル / 未知の版は `.bak` に退避し、承認なしとして扱う (fail closed)。
+- コードまたは権限が変わったら再承認。権限が減っただけなら確認なしで記録を更新。
+- コードは import 前にハッシュする。manifest は permissionsHash に含める。
 - 注意: fs の強制がない間は、モジュールが自分で `approvals.json` を書き換えられる。現段階では改ざん防止ではなく、承認の記録と変更検知として位置づける。
 
-### 4.3 危険な組み合わせ (警告)
+### 4.4 危険な組み合わせ (警告)
 
 次の組み合わせは承認時に警告する。拒否はしない (ユーザー判断)。
 
@@ -185,6 +199,12 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 - `env` + `net`
 - `exec` (フルアクセス) + `history.rewrite`
 - `tool.intercept` + `history.read` (全ツールの引数と会話の同時観測)
+
+### 4.5 builtin と --approve-all
+
+- `manifest.builtin: true` の同梱モジュールは承認を省略する。重い権限は起動時に診断ログへ出す。
+- `--approve-all` は開発用。承認をバイパスし、approvals.json を書かない。起動時に警告を出す。
+- `config.allowApproveAll: false` の環境では `--approve-all` を拒否する。
 
 ## 5. モジュール間通信
 

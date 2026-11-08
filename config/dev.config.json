@@ -9,7 +9,8 @@
     },
     {
       "use": "../src/modules/shell"
-    }
+    },
+    "../src/modules/ui-cli"
   ],
   "models": {
     "default": "mock/echo"

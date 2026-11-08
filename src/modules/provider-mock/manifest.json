@@ -1,8 +1,11 @@
 {
   "name": "provider-mock",
   "version": "0.1.0",
-  "roles": ["provider"],
+  "roles": [
+    "provider"
+  ],
   "critical": true,
   "runner": "inprocess",
-  "main": "index.ts"
+  "main": "index.ts",
+  "builtin": true
 }

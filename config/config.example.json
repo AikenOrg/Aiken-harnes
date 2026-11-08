@@ -11,7 +11,8 @@
     {
       "use": "../src/modules/shell",
       "config": {}
-    }
+    },
+    "../src/modules/ui-cli"
   ],
   "models": {
     "default": "opencode-go/glm-5.3-flash"

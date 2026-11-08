@@ -1,11 +1,12 @@
 import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { configSchema } from "./protocol/config.ts";
 import type { EventEnvelope } from "./protocol/events.ts";
 import { CORE_VERSION } from "./protocol/version.ts";
 import { Harness } from "./core/harness.ts";
 import { Logger } from "./core/log.ts";
+import { approveAllAllowed } from "./core/approvals.ts";
 import { loadUserEnv } from "./core/user-env.ts";
 import { loadModuleDefinition } from "./core/module-loader.ts";
 import type { ModuleDefinition } from "./core/module-host.ts";
@@ -25,12 +26,21 @@ async function main(): Promise<void> {
   const configPath = argValue(args, "--config") ?? process.env.HARNESS_CONFIG;
   if (!configPath) {
     console.log(`next-harness ${CORE_VERSION}`);
-    console.log("usage: bun run src/index.ts --config <config.json> [--approve-all] [--events] [--env-file <path>]");
+    console.log("usage: bun run src/index.ts --config <config.json> [--approve-all] [--events] [--env-file <path>] [--approvals <path>]");
     return;
   }
 
   const absoluteConfig = resolve(configPath);
   const config = configSchema.parse(JSON.parse(await readFile(absoluteConfig, "utf8")));
+  const approveAll = args.includes("--approve-all");
+  if (approveAll && !approveAllAllowed(config)) {
+    console.error("--approve-all is disabled by config.allowApproveAll=false");
+    process.exitCode = 1;
+    return;
+  }
+  if (approveAll) {
+    console.warn("WARNING: --approve-all bypasses module approvals. Nothing will be written to approvals.json.");
+  }
   const definitions: ModuleDefinition[] = [];
   for (const entry of config.modules) {
     const use = typeof entry === "string" ? entry : entry.use;
@@ -43,11 +53,18 @@ async function main(): Promise<void> {
     }
     definitions.push(definition);
   }
+  if (!definitions.some((definition) => definition.manifest.roles.includes("ui"))) {
+    definitions.push(
+      await loadModuleDefinition(join(import.meta.dir, "modules/ui-cli"), import.meta.dir),
+    );
+  }
 
+  const approvalsPath = argValue(args, "--approvals");
   const harness = new Harness({
     config,
     modules: definitions,
-    autoApprove: args.includes("--approve-all"),
+    ...(approveAll ? { autoApprove: true } : {}),
+    ...(approvalsPath !== undefined ? { approvalsPath } : {}),
     logger: new Logger({
       ...(config.log?.level !== undefined ? { level: config.log.level } : {}),
     }),

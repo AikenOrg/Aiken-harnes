@@ -24,6 +24,7 @@
 | 14 | [spec/14-open-decisions.md](spec/14-open-decisions.md) | 決定・補完・要確認事項 |
 | 15 | [impl/m1.md](impl/m1.md) | M1 の実装状況・動かし方・未実装項目 |
 | 16 | [impl/m3.md](impl/m3.md) | SQLite 永続化と session.restore の実装 |
+| 17 | [impl/m4a.md](impl/m4a.md) | approvals.json と承認フローの実装 |
 | — | [adr/](adr/) | 環境・ツール選定の記録 |
 
 ## ドキュメントのルール

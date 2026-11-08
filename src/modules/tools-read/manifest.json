@@ -6,8 +6,21 @@
   "runner": "inprocess",
   "main": "index.ts",
   "permissions": [
-    { "cap": "tool.register" },
-    { "cap": "fs.read", "paths": ["."] }
+    {
+      "cap": "tool.register"
+    },
+    {
+      "cap": "fs.read",
+      "paths": [
+        "."
+      ]
+    }
   ],
-  "tools": [{ "name": "read", "mode": "sync" }]
+  "tools": [
+    {
+      "name": "read",
+      "mode": "sync"
+    }
+  ],
+  "builtin": true
 }

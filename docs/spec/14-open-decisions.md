@@ -70,6 +70,10 @@
 | D64 | latestRestorable の対象 | 最上位セッション (`parent_id IS NULL`) のみ | 確定 |
 | D65 | 永続化 flush のタイミング | `tool.completed` / `turn.ended` / `core.stopping` / dispose | 確定 |
 | D66 | 保存モデルが無い場合 | 復元を失敗させ、セッションを error にしてモデル ID を返す | 確定 |
+| D67 | builtin モジュール | 承認を省略し、`permission.granted source:"builtin"` を発行 | 確定 |
+| D68 | 承認前のコード実行 | ModuleLoader は記述子を返し、承認後に activate/import する | 確定 |
+| D69 | 権限削減の自動更新 | `codeOnlyHash` を内部保存し、コード変更なしの権限削減は自動更新 | 確定 |
+| D70 | `--approve-all` | 開発用。記録を書かず、`allowApproveAll: false` で拒否 | 確定 |
 
 ## 決定の要点
 

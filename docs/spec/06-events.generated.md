@@ -129,9 +129,13 @@
 |  |  | `module` | string | ✓ |
 |  |  | `permissions` | string[] | ✓ |
 |  |  | `warnings` | string[] | ✓ |
+|  |  | `changes` | string[] |  |
+|  |  | `codeHash` | string |  |
+|  |  | `permissionsHash` | string |  |
 | `permission.granted` | 権限を付与した。 | `v` | 1 | ✓ |
 |  |  | `module` | string | ✓ |
 |  |  | `permissions` | string[] | ✓ |
+|  |  | `source` | string |  |
 | `permission.denied` | 権限を拒否した。 | `v` | 1 | ✓ |
 |  |  | `module` | string | ✓ |
 |  |  | `cap` | string | ✓ |

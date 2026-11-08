@@ -191,6 +191,7 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 |---|---|
 | `log.level` | `debug` / `info` / `warn` / `error` (既定 `info`) |
 | `log.file` | 未指定なら stderr |
+| `allowApproveAll` | 開発用 `--approve-all` を許可するか。本番は `false` (省略時 true) |
 | `dataDir` | モジュールが使う既定ディレクトリ (既定 `./data`) |
 | `prompt.system` | config 由来の static 断片。常に static ブロックの先頭 |
 | `secrets.<name>.env` | 秘密情報を読む環境変数名 |

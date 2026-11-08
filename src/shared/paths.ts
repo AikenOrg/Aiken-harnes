@@ -23,3 +23,7 @@ export function userEnvFile(): string {
 export function defaultDbPath(): string {
   return join(userDataDir(), "next-harness", "harness.sqlite");
 }
+
+export function approvalsFile(): string {
+  return join(userConfigDir(), "next-harness", "approvals.json");
+}

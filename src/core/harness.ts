@@ -15,6 +15,8 @@ import { HookRunner } from "./hooks.ts";
 import { createIdGenerator, type IdGenerator } from "./ids.ts";
 import { JobManager, MemoryResultStore, type ResultStore } from "./jobs.ts";
 import { Logger } from "./log.ts";
+import { ApprovalManager, ApprovalStore } from "./approvals.ts";
+import { approvalsFile } from "../shared/paths.ts";
 import { ModuleHost, type ModuleDefinition } from "./module-host.ts";
 import { PermissionBroker } from "./permissions.ts";
 import { PromptAssembler } from "./prompt.ts";
@@ -40,6 +42,7 @@ export type HarnessOptions = {
   maxNotificationChars?: number;
   maxConcurrentPerSession?: number;
   baseDir?: string;
+  approvalsPath?: string;
 };
 
 type QueuedMessage = {
@@ -169,6 +172,11 @@ export class Harness {
         listRestorable: () => this.listRestorable(),
         restore: (sessionId) => this.restoreSession(sessionId),
       },
+      approvals: new ApprovalManager(
+        new ApprovalStore(options.approvalsPath ?? approvalsFile(), logger),
+        this.bus,
+        logger,
+      ),
     });
     this.#turnLoop = new TurnLoop({
       bus: this.bus,

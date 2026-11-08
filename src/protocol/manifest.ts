@@ -77,6 +77,8 @@ export type ModuleManifest = {
   critical: boolean;
   /** 現状は "inprocess" のみ。 */
   runner: "inprocess";
+  /** 同梱モジュール。承認確認を省略する。 */
+  builtin?: boolean;
   /** モジュールディレクトリからのエントリポイント。既定は "index.js"。 */
   main?: string;
   requires?: readonly string[];
@@ -103,6 +105,7 @@ export const moduleManifestSchema = z.object({
   ),
   critical: z.boolean(),
   runner: z.literal("inprocess"),
+  builtin: z.boolean().optional(),
   main: z.string().min(1).optional(),
   requires: z.array(z.string()).optional(),
   talksTo: z.array(z.string()).optional(),

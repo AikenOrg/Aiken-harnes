@@ -1,19 +1,30 @@
 import type { ModuleContext, ModuleExports } from "../protocol/ctx.ts";
+import type { ApprovalDecision, ApprovalRequest } from "../protocol/approval.ts";
 import type { Capability, ModuleManifest, ModuleRole } from "../protocol/manifest.ts";
 import type { HarnessError } from "../protocol/common.ts";
 import { EXCLUSIVE_ROLES } from "../protocol/manifest.ts";
+import type { ApprovalManager, ModuleSource } from "./approvals.ts";
 import type { ContextFactoryOptions } from "./context.ts";
 import { createModuleContext } from "./context.ts";
 
-export type ModuleDefinition = ModuleExports & {
+export type ModuleDefinition = {
   manifest: ModuleManifest;
   config?: Record<string, unknown>;
+  source?: ModuleSource;
+  codeHash?: string;
+  builtin?: boolean;
+  init?: ModuleExports["init"];
+  dispose?: ModuleExports["dispose"];
+  methods?: ModuleExports["methods"];
+  /** 承認後にコードを import するための遅延ローダー。 */
+  activate?: () => Promise<ModuleExports>;
 };
 
 export type ModuleHostOptions = Omit<ContextFactoryOptions, "callModule" | "log"> & {
   log: ContextFactoryOptions["log"];
   autoApprove?: boolean;
   approve?: (manifest: ModuleManifest) => boolean | Promise<boolean>;
+  approvals?: ApprovalManager;
 };
 
 type LoadedModule = {
@@ -74,8 +85,13 @@ export class ModuleHost {
   }
 
   async load(definitions: ModuleDefinition[]): Promise<void> {
-    if (definitions.length > 0 && !this.#options.autoApprove && !this.#options.approve) {
-      throw new Error("module approval is required (pass an approve callback or autoApprove)");
+    if (
+      definitions.length > 0 &&
+      !this.#options.autoApprove &&
+      !this.#options.approve &&
+      !this.#options.approvals
+    ) {
+      throw new Error("module approval is required (approvals, approve, or autoApprove)");
     }
     for (const definition of definitions) {
       const name = definition.manifest.name;
@@ -98,25 +114,63 @@ export class ModuleHost {
         this.#disable(name, `dependency disabled: ${disabledDependency}`);
         continue;
       }
-      if (!(await this.#approve(definition.manifest))) {
+      const approved = await this.#authorize(definition);
+      if (!approved) {
         this.#disable(name, "permission not approved");
+        if (definition.manifest.critical) throw new Error(`module approval denied: ${name}`);
         continue;
       }
 
-      const permissions = this.#grantPermissions(definition.manifest);
-      const runtime = {
-        manifest: definition.manifest,
-        config: definition.config ?? {},
-      };
-      const context = createModuleContext(runtime, {
-        ...this.#options,
-        callModule: (caller, target, method, args) => this.call(caller, target, method, args),
-      });
+      this.#grantPermissions(definition.manifest);
+      let activated: ModuleExports | undefined;
+      try {
+        activated = definition.activate ? await definition.activate() : undefined;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.#options.bus.emit(
+          "module.failed",
+          { v: 1, module: name, error: { code: "module_import_failed", message } },
+          { source: "core" },
+        );
+        if (definition.manifest.critical) throw error;
+        this.#disable(name, message);
+        continue;
+      }
+      const runtimeDefinition: ModuleDefinition = activated
+        ? {
+            ...definition,
+            ...activated,
+            manifest: definition.manifest,
+            ...(definition.source !== undefined ? { source: definition.source } : {}),
+            ...(definition.codeHash !== undefined ? { codeHash: definition.codeHash } : {}),
+            ...(definition.builtin !== undefined ? { builtin: definition.builtin } : {}),
+            ...(definition.config !== undefined ? { config: definition.config } : {}),
+          }
+        : definition;
+      const init = runtimeDefinition.init;
+      if (!init) {
+        const message = `module ${name} does not export init()`;
+        this.#options.bus.emit(
+          "module.failed",
+          { v: 1, module: name, error: { code: "invalid_module", message } },
+          { source: "core" },
+        );
+        if (definition.manifest.critical) throw new Error(message);
+        this.#disable(name, message);
+        continue;
+      }
+
+      const context = createModuleContext(
+        { manifest: definition.manifest, config: definition.config ?? {} },
+        {
+          ...this.#options,
+          callModule: (caller, target, method, args) => this.call(caller, target, method, args),
+        },
+      );
 
       try {
-        await definition.init(context, definition.config ?? {});
-        this.#loaded.push({ definition, context });
-        void permissions;
+        await init(context, definition.config ?? {});
+        this.#loaded.push({ definition: runtimeDefinition, context });
         this.#options.bus.emit(
           "module.loaded",
           {
@@ -170,6 +224,68 @@ export class ModuleHost {
     return fn(args);
   }
 
+  async #authorize(definition: ModuleDefinition): Promise<boolean> {
+    const manifest = definition.manifest;
+    const permissions = this.#permissionStrings(manifest);
+    if (manifest.builtin === true || definition.builtin === true) {
+      if (this.#options.approvals) {
+        const result = await this.#options.approvals.authorize({
+          manifest,
+          ...(definition.source !== undefined ? { source: definition.source } : {}),
+          ...(definition.codeHash !== undefined ? { codeHash: definition.codeHash } : {}),
+          requestApproval: this.#requestApproval,
+        });
+        return result.approved;
+      }
+      this.#options.bus.emit(
+        "permission.granted",
+        { v: 1, module: manifest.name, permissions, source: "builtin" },
+        { source: "core" },
+      );
+      return true;
+    }
+    if (this.#options.autoApprove) {
+      this.#options.bus.emit(
+        "permission.granted",
+        { v: 1, module: manifest.name, permissions, source: "autoApprove" },
+        { source: "core" },
+      );
+      return true;
+    }
+    if (this.#options.approvals) {
+      const result = await this.#options.approvals.authorize({
+        manifest,
+        ...(definition.source !== undefined ? { source: definition.source } : {}),
+        ...(definition.codeHash !== undefined ? { codeHash: definition.codeHash } : {}),
+        requestApproval: this.#requestApproval,
+      });
+      return result.approved;
+    }
+    if (this.#options.approve) return this.#options.approve(manifest);
+    return false;
+  }
+
+  #requestApproval = async (request: ApprovalRequest): Promise<ApprovalDecision> => {
+    const owner = this.#roleOwners.get("ui");
+    if (!owner) return { approved: false, reason: "ui role unavailable" };
+    const item = this.#loaded.find((entry) => entry.definition.manifest.name === owner);
+    const method = item?.definition.methods?.requestApproval;
+    if (!method) return { approved: false, reason: "ui approval method unavailable" };
+    return (await method(request)) as ApprovalDecision;
+  };
+
+  #permissionStrings(manifest: ModuleManifest): string[] {
+    return (manifest.permissions ?? []).map((permission) => {
+      const parts: string[] = [permission.cap];
+      if (permission.paths) parts.push(`paths=${[...permission.paths].sort().join(",")}`);
+      if (permission.hosts) parts.push(`hosts=${[...permission.hosts].sort().join(",")}`);
+      if (permission.names) parts.push(`names=${[...permission.names].sort().join(",")}`);
+      if (permission.mode) parts.push(`mode=${permission.mode}`);
+      if (permission.allow) parts.push(`allow=${[...permission.allow].sort().join(",")}`);
+      return parts.join(":");
+    });
+  }
+
   #checkRoles(): void {
     for (const definition of this.#definitions.values()) {
       for (const role of definition.manifest.roles) {
@@ -217,12 +333,6 @@ export class ModuleHost {
     return capabilities;
   }
 
-  async #approve(manifest: ModuleManifest): Promise<boolean> {
-    if (this.#options.autoApprove) return true;
-    if (!this.#options.approve) return false;
-    return this.#options.approve(manifest);
-  }
-
   #resolveOrder(): string[] {
     const byName = new Set<string>(this.#definitions.keys());
     const byRole = new Map<ModuleRole, string>();
@@ -256,7 +366,17 @@ export class ModuleHost {
       order.push(name);
     };
     for (const name of this.#definitions.keys()) visit(name);
-    return order;
+    const rank = (name: string): number => {
+      const definition = this.#definitions.get(name);
+      if (!definition) return 3;
+      if (definition.manifest.builtin === true || definition.builtin === true) return 0;
+      if (definition.manifest.roles.includes("ui")) return 1;
+      return 2;
+    };
+    return order
+      .map((name, index) => ({ name, index }))
+      .sort((a, b) => rank(a.name) - rank(b.name) || a.index - b.index)
+      .map((entry) => entry.name);
   }
 
   #disabledDependency(definition: ModuleDefinition): string | undefined {

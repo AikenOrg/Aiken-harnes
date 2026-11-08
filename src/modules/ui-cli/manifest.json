@@ -1,0 +1,9 @@
+{
+  "name": "ui-cli",
+  "version": "0.1.0",
+  "roles": ["ui"],
+  "builtin": true,
+  "critical": false,
+  "runner": "inprocess",
+  "main": "index.ts"
+}

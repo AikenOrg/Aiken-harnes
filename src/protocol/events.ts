@@ -236,11 +236,15 @@ export const eventSchemas = {
     module: z.string(),
     permissions: z.array(z.string()),
     warnings: z.array(z.string()),
+    changes: z.array(z.string()).optional(),
+    codeHash: z.string().optional(),
+    permissionsHash: z.string().optional(),
   }),
   "permission.granted": z.object({
     v,
     module: z.string(),
     permissions: z.array(z.string()),
+    source: z.string().optional(),
   }),
   "permission.denied": z.object({
     v,

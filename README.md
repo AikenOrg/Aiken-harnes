@@ -43,4 +43,4 @@ bun run src/index.ts --config config/m3.config.json --approve-all
 
 ## ステータス
 
-2026-11-08: M1 のコア、非同期 shell、Anthropic / OpenCode Go、SQLite 永続化と session.restore を実装。承認 UI・compaction・agent 系・Web UI は未実装。
+2026-11-08: M1 のコア、非同期 shell、Anthropic / OpenCode Go、SQLite 永続化、session.restore、approvals.json と承認フローを実装。compaction・agent 系・Web UI は未実装。

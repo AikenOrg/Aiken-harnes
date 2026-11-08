@@ -57,6 +57,8 @@ export const configSchema = z.object({
   }),
   /** 起動時の復元方針。none: 何もしない。last: 直前のセッションを自動で開く。 */
   restore: z.enum(["none", "last"]).optional(),
+  /** 開発用 --approve-all を許可するか。本番では false。 */
+  allowApproveAll: z.boolean().optional(),
   shell: shellConfigSchema.optional(),
   jobs: jobsConfigSchema.optional(),
   context: contextConfigSchema.optional(),

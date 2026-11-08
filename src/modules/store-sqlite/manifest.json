@@ -15,6 +15,8 @@
     "history.rewritten",
     "session.*",
     "job.*",
+    "tool.completed",
+    "turn.ended",
     "core.stopping"
   ]
 }

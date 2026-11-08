@@ -21,7 +21,8 @@
   "roles": ["history-store", "session-store", "result-store"],
   "critical": true,
   "subscribes": [
-    "message.appended", "history.rewritten", "session.*", "job.*", "core.stopping"
+    "message.appended", "history.rewritten", "session.*", "job.*",
+    "tool.completed", "turn.ended", "core.stopping"
   ],
   "permissions": [
     { "cap": "history.read" },
@@ -96,7 +97,7 @@ CREATE TABLE job_results (
 | メソッド | 引数 | 返り値 |
 |---|---|---|
 | `listRestorable()` | — | `Session[]` (`closed` 以外、updated_at 降順) |
-| `latestRestorable()` | — | `Session \| undefined` |
+| `latestRestorable()` | — | `Session \| undefined`。`parent_id IS NULL` の最上位のみ |
 | `load(id)` | sessionId | `Session \| undefined` |
 
 `meta_json` には `autoWake` / `lastInputTokens` を保存できる。
@@ -130,7 +131,10 @@ UI は `session.listRestorable()` で一覧を得て、`session.restore(id)` を
 session.restore(id)
   -> session-store.load(id) で保存済み Session を取得
   -> コアが state=restoring で Session を作成 (user.message 拒否)
-  -> history-store.loadMessages(id) を ctx.history.restore でコアへ投入
+  -> 保存モデルのプロバイダーが現 config に無ければ error で失敗
+  -> history-store.loadMessages(id)
+  -> 結果の欠けた末尾 tool_call に interrupted の tool_result を補う
+  -> ctx.history.restore でコアへ投入
   -> result-store.listBySession(id)
        running          -> failed (code: "interrupted") に更新
        terminal & !notified -> 通知キューへ
@@ -142,6 +146,8 @@ session.restore(id)
 - `history.restore` は `history.restore` 権限 + history-store ロール、`state=restoring` かつ履歴が空のセッションだけ許可。
 - 復元失敗時: セッションを `error` にして UI から再試行できる。`session.closed` は発行しない。
 - 再試行時は error 状態のセッションとメモリ履歴を捨ててからやり直す。
+- 保存モデルのプロバイダーが無い場合も `error`。エラーメッセージにモデル ID を含める。
+- 強制終了で `tool_call` だけが残った場合、復元時に `tool_result` (`isError: true`, `interrupted by restart`) を補い、次のモデル呼び出しを壊さない。
 
 ## 6. 掃除
 
@@ -154,6 +160,7 @@ session.restore(id)
 
 - すべての書き込みを `#queue` に積み、前の処理の完了後に実行する。
 - メッセージ追記は 50ms または 100 件でバッチ化し、1 トランザクションで insert する (`batchMs` / `batchSize` で変更可)。他の書き込みの前には pending バッチを flush するため、順序は保たれる。
+- `tool.completed` と `turn.ended` でも flush し、強制終了時の損失範囲を小さくする。
 - 負荷テスト: 10 セッション × 1,000 メッセージを追記し、件数・seq の連続性・SQLITE_BUSY の不在を確認。
 - `core.stopping` / `dispose` で flush する。
 

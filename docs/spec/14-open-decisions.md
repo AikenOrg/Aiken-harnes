@@ -66,6 +66,10 @@
 | D60 | `session.created.autoWake` | 永続化のため optional で追加。既存購読者は無視できる | 確定 |
 | D61 | ロール API の呼び出し | コアが `ModuleHost.callRole(role, method, args)` で store-sqlite のメソッドを呼ぶ | 確定 |
 | D62 | DB の既定パス | ユーザーデータディレクトリの `next-harness/harness.sqlite`。config で変更可 | 確定 |
+| D63 | 復元時の会話整合性 | 結果の欠けた tool_call に `interrupted by restart` の `tool_result` を補う | 確定 |
+| D64 | latestRestorable の対象 | 最上位セッション (`parent_id IS NULL`) のみ | 確定 |
+| D65 | 永続化 flush のタイミング | `tool.completed` / `turn.ended` / `core.stopping` / dispose | 確定 |
+| D66 | 保存モデルが無い場合 | 復元を失敗させ、セッションを error にしてモデル ID を返す | 確定 |
 
 ## 決定の要点
 

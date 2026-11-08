@@ -238,7 +238,8 @@ export class SqliteStore {
               this.#pendingMessages = this.#pendingMessages.filter(
                 (item) => item.sessionId !== sessionId || item.seq > rewriteSeq,
               );
-              return this.#enqueueOrdered(() => this.#replaceMessages(sessionId, messages));
+              // 置換は pending の後続バッチより先に実行する (前のバッチは捨てる)。
+              return this.#enqueue(() => this.#replaceMessages(sessionId, messages));
             })
             .catch((error: unknown) => this.#ctx.log.error("store-sqlite rewrite failed", error));
           return;
@@ -292,6 +293,11 @@ export class SqliteStore {
               )
               .run(payload.reason ?? "cancelled", event.ts, payload.jobId);
           });
+          return;
+        }
+        case "tool.completed":
+        case "turn.ended": {
+          void this.flush().catch((error: unknown) => this.#ctx.log.error("store-sqlite flush failed", error));
           return;
         }
         case "job.notified": {
@@ -400,7 +406,9 @@ export class SqliteStore {
   async latestRestorable(): Promise<Session | undefined> {
     await this.flush();
     const row = this.#db
-      .query("SELECT * FROM sessions WHERE state != 'closed' ORDER BY updated_at DESC LIMIT 1")
+      .query(
+        "SELECT * FROM sessions WHERE state != 'closed' AND parent_id IS NULL ORDER BY updated_at DESC LIMIT 1",
+      )
       .get() as SessionRow | null;
     return row ? rowSession(row) : undefined;
   }
@@ -681,6 +689,8 @@ const module: ModuleExports = {
       "job.failed",
       "job.cancelled",
       "job.notified",
+      "tool.completed",
+      "turn.ended",
     ];
     for (const type of subscriptions) {
       ctx.bus.on(type, (event) => store?.onEvent(event));

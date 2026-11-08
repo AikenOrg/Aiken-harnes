@@ -6,6 +6,7 @@ import type { ModelInfo } from "../protocol/provider.ts";
 import type { EventEnvelope } from "../protocol/events.ts";
 import type { Job, JobStatus } from "../protocol/jobs.ts";
 import type { Message } from "../protocol/messages.ts";
+import type { ToolCallBlock } from "../protocol/messages.ts";
 import type { Session } from "../protocol/session.ts";
 import type { ToolDefinition } from "../protocol/tools.ts";
 import { EventBus } from "./bus.ts";
@@ -46,6 +47,47 @@ type QueuedMessage = {
   resolve: () => void;
   reject: (error: unknown) => void;
 };
+
+/** 復元時に、結果の欠けた tool_call へ interrupted の tool_result を補う。 */
+
+function repairDanglingToolCalls(messages: Message[]): { messages: Message[]; repaired: number } {
+  const resultIds = new Set<string>();
+  for (const message of messages) {
+    for (const block of message.blocks) {
+      if (block.type === "tool_result") resultIds.add(block.toolCallId);
+    }
+  }
+  const out: Message[] = [];
+  let repaired = 0;
+  for (let index = 0; index < messages.length; index += 1) {
+    const message = messages[index]!;
+    out.push(message);
+    if (message.role !== "assistant") continue;
+    const missing = message.blocks.filter(
+      (block): block is ToolCallBlock => block.type === "tool_call" && !resultIds.has(block.id),
+    );
+    if (missing.length === 0) continue;
+    while (index + 1 < messages.length && messages[index + 1]?.role === "tool") {
+      index += 1;
+      out.push(messages[index]!);
+    }
+    const repair: Message = {
+      id: `msg_restore_${index}_${repaired}`,
+      role: "tool",
+      createdAt: Date.now(),
+      blocks: missing.map((call) => ({
+        type: "tool_result",
+        toolCallId: call.id,
+        name: call.name,
+        content: "interrupted by restart",
+        isError: true,
+      })),
+    };
+    out.push(repair);
+    repaired += missing.length;
+  }
+  return { messages: out, repaired };
+}
 
 /** コアの組み立て。UI / CLI はこのクラスだけを使う。 */
 export class Harness {
@@ -232,8 +274,17 @@ export class Harness {
     const restoring: Session = { ...saved, state: "restoring" };
     this.sessions.restorePrepared(restoring);
     try {
+      try {
+        this.providers.getModelInfo(saved.model);
+      } catch {
+        throw new Error(`model/provider unavailable for restored session: ${saved.model}`);
+      }
       const messages = await this.modules.callRole<Message[]>("history-store", "loadMessages", sessionId);
-      this.history.restore(sessionId, messages);
+      const repaired = repairDanglingToolCalls(messages);
+      if (repaired.repaired > 0) {
+        this.#logger.warn(`restored session ${sessionId}: synthesized ${repaired.repaired} interrupted tool_result(s)`);
+      }
+      this.history.restore(sessionId, repaired.messages);
       if (this.modules.hasRole("result-store")) {
         const jobs = await this.modules.callRole<Job[]>("result-store", "listBySession", { sessionId });
         this.jobs.restoreJobs(jobs);

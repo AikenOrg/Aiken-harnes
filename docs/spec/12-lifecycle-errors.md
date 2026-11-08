@@ -42,6 +42,8 @@ config 読込 -> core 初期化 -> manifest 読込 -> ロール排他検査 -> �
 - 親セッションを閉じたら子孫も再帰的に閉じる。`agent.close` も同じく子孫を閉じる。
 - 復元してもターンループは自動で再開しない。ユーザー入力か、保留中の通知による autoWake を待つ。
 - 復元に失敗したらセッションを `error` にし、`session.closed` は発行しない。UI から再試行できる。
+- 保存モデルのプロバイダーが無い場合も `error` にし、モデル ID を理由として返す。
+- 結果の欠けた末尾 tool_call は `interrupted by restart` の tool_result で補う。
 
 ## 4. critical の範囲
 

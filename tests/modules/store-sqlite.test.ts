@@ -394,6 +394,100 @@ describe("store-sqlite", () => {
     await h2.stop();
   });
 
+  test("repairs a dangling tool_call after a crash and continues", async () => {
+    const dir = await tempDir();
+    const db = join(dir, "harness.sqlite");
+    const h1 = await makeHarness(db, "repair1");
+    await h1.start();
+    const session = h1.createSession();
+    h1.history.append(session.id, {
+      role: "assistant",
+      blocks: [
+        { type: "text", text: "calling read" },
+        { type: "tool_call", id: "call_cut", name: "read", args: { path: "README.md" } },
+      ],
+    });
+    await h1.flushPersistence();
+    await h1.stop();
+
+    const h2 = await makeHarness(db, "repair2");
+    await h2.start();
+    await h2.restoreSession(session.id);
+    const repaired = h2.history.read(session.id).at(-1);
+    expect(repaired?.role).toBe("tool");
+    expect(repaired?.blocks[0]).toMatchObject({
+      type: "tool_result",
+      toolCallId: "call_cut",
+      content: "interrupted by restart",
+      isError: true,
+    });
+    await h2.send(session.id, "continue");
+    const ended = h2.history.read(session.id).at(-1);
+    expect(ended?.role).toBe("assistant");
+    await h2.stop();
+  });
+
+  test("latestRestorable returns only top-level sessions", async () => {
+    const dir = await tempDir();
+    const db = join(dir, "harness.sqlite");
+    const h1 = await makeHarness(db, "latest1");
+    await h1.start();
+    const parent = h1.createSession();
+    const child = h1.sessions.create({ model: "mock/script", parentId: parent.id });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    h1.sessions.setModel(child.id, "mock/script");
+    await h1.flushPersistence();
+    await h1.stop();
+
+    const h2 = await makeHarness(db, "latest2");
+    await h2.start();
+    const latest = await h2.modules.callRole<{ id: string } | undefined>("session-store", "latestRestorable");
+    expect(latest?.id).toBe(parent.id);
+    await h2.stop();
+  });
+
+  test("restore into error when the saved model is no longer provided", async () => {
+    const dir = await tempDir();
+    const db = join(dir, "harness.sqlite");
+    const h1 = await makeHarness(db, "missing1");
+    await h1.start();
+    const session = h1.createSession();
+    await h1.send(session.id, "hello");
+    await h1.flushPersistence();
+    await h1.stop();
+
+    const otherProvider = new ScriptedProvider([], { model: "mock/other" });
+    const h2 = new Harness({
+      config: { version: 1, modules: [], models: { default: "mock/other" } },
+      modules: [providerModule(otherProvider), await storeModule(db)],
+      autoApprove: true,
+      ids: createSequentialIds("missing2"),
+    });
+    await h2.start();
+    await expect(h2.restoreSession(session.id)).rejects.toThrow(/model\/provider unavailable/);
+    expect(h2.sessions.get(session.id).state).toBe("error");
+    await h2.stop();
+  });
+
+  test("flushes persistence at turn.ended", async () => {
+    const dir = await tempDir();
+    const db = join(dir, "harness.sqlite");
+    const h = await makeHarness(db, "flush");
+    await h.start();
+    const session = h.createSession();
+    await h.send(session.id, "hello");
+    const raw = new Database(db, { readonly: true });
+    let count = 0;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      count = (raw.query("SELECT COUNT(*) AS n FROM messages WHERE session_id = ?").get(session.id) as { n: number }).n;
+      if (count >= 2) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    raw.close();
+    expect(count).toBeGreaterThanOrEqual(2);
+    await h.stop();
+  });
+
   test("unknown schema version aborts startup", async () => {
     const dir = await tempDir();
     const db = join(dir, "harness.sqlite");

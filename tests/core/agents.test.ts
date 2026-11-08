@@ -17,7 +17,7 @@ function config(overrides: Partial<HarnessConfig> = {}): HarnessConfig {
 }
 
 async function tempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "iken-harnes-agent-"));
+  const dir = await mkdtemp(join(tmpdir(), "Aiken-harnes-agent-"));
   tempDirs.push(dir);
   return dir;
 }

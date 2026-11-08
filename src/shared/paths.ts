@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-export const APP_DIR_NAME = "iken-harnes";
+export const APP_DIR_NAME = "Aiken-harnes";
 
 /** OS のユーザー設定ディレクトリ。approvals.json / .env を置く。 */
 export function userConfigDir(): string {

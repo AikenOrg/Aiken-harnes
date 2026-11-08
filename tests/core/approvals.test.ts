@@ -19,7 +19,7 @@ function config(): HarnessConfig {
 }
 
 async function tempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "iken-harnes-approval-"));
+  const dir = await mkdtemp(join(tmpdir(), "Aiken-harnes-approval-"));
   tempDirs.push(dir);
   return dir;
 }

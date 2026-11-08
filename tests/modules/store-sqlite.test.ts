@@ -18,7 +18,7 @@ function config(): HarnessConfig {
 }
 
 async function tempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "iken-harnes-store-"));
+  const dir = await mkdtemp(join(tmpdir(), "Aiken-harnes-store-"));
   tempDirs.push(dir);
   return dir;
 }

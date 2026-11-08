@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "iken-harnes",
+      "name": "Aiken-harnes",
       "dependencies": {
         "@material/material-color-utilities": "0.4.0",
         "@material/web": "2.5.0",

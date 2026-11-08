@@ -30,7 +30,7 @@
 }
 ```
 
-- 既定: `~/.config/iken-harnes/approvals.json` (Windows は `%APPDATA%\iken-harnes\approvals.json`)。
+- 既定: `~/.config/Aiken-harnes/approvals.json` (Windows は `%APPDATA%\Aiken-harnes\approvals.json`)。
 - 一時ファイルへ書いて `rename`。書き込み直前に読み直してマージする。
 - 壊れたファイル / 未知の版は `.bak` に退避し、空の記録として扱う (fail closed)。
 - `codeOnlyHash` は manifest を除くコードだけのハッシュ。権限だけを減らしたときの自動更新に使う内部フィールド。

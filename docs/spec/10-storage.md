@@ -7,8 +7,8 @@
 - `bun:sqlite` を使い、DB への書き込みはこのモジュール内の 1 本のキューで直列化する。
 - WAL モード。`journal_mode=WAL` / `synchronous=NORMAL` / `foreign_keys=ON` / `busy_timeout`。
 - DB の既定置き場所はユーザーデータディレクトリ:
-  - Linux: `$XDG_DATA_HOME/iken-harnes/harness.sqlite` (未設定なら `~/.local/share/...`)
-  - Windows: `%APPDATA%\iken-harnes\harness.sqlite`
+  - Linux: `$XDG_DATA_HOME/Aiken-harnes/harness.sqlite` (未設定なら `~/.local/share/...`)
+  - Windows: `%APPDATA%\Aiken-harnes\harness.sqlite`
 
 - config の `store-sqlite.config.path` で変更できる。
 
@@ -172,6 +172,6 @@ DB を作業ディレクトリ内に置く場合に備え、read ツールは `*
 
 ## 9. Windows
 
-- パスは `%APPDATA%\iken-harnes\harness.sqlite` を既定とする。
+- パスは `%APPDATA%\Aiken-harnes\harness.sqlite` を既定とする。
 - `node:path` の `join` / `resolve` を使い、区切り文字をハードコードしない。
 - Windows 実機での確認は未実施 (M5)。

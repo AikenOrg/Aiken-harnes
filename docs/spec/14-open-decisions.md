@@ -61,11 +61,11 @@
 | D55 | ModelRequest.sessionId | プロバイダーへセッション ID を渡す。OpenCode Go の `x-opencode-session` に使う | 確定 |
 | D56 | shell の子プロセス環境 | 許可リストの変数だけを渡す。`OPENCODE_API_KEY` などは渡さない | 確定 |
 | D57 | read の拒否リスト | 作業ディレクトリ外、`.env*`、`approvals.json`、秘密鍵、`.git`、`.ssh` を拒否。realpath 後に検査 | 確定 |
-| D58 | 秘密情報の置き場所 | `~/.config/iken-harnes/.env` (Windows は `%APPDATA%\iken-harnes\.env`)。CLI が起動時に読み、既存 env は上書きしない | 確定 |
+| D58 | 秘密情報の置き場所 | `~/.config/Aiken-harnes/.env` (Windows は `%APPDATA%\Aiken-harnes\.env`)。CLI が起動時に読み、既存 env は上書きしない | 確定 |
 | D59 | `session.restored` イベント | 復元成功時に発行する。既存のイベント一覧への追加 | 確定 |
 | D60 | `session.created.autoWake` | 永続化のため optional で追加。既存購読者は無視できる | 確定 |
 | D61 | ロール API の呼び出し | コアが `ModuleHost.callRole(role, method, args)` で store-sqlite のメソッドを呼ぶ | 確定 |
-| D62 | DB の既定パス | ユーザーデータディレクトリの `iken-harnes/harness.sqlite`。config で変更可 | 確定 |
+| D62 | DB の既定パス | ユーザーデータディレクトリの `Aiken-harnes/harness.sqlite`。config で変更可 | 確定 |
 | D63 | 復元時の会話整合性 | 結果の欠けた tool_call に `interrupted by restart` の `tool_result` を補う | 確定 |
 | D64 | latestRestorable の対象 | 最上位セッション (`parent_id IS NULL`) のみ | 確定 |
 | D65 | 永続化 flush のタイミング | `tool.completed` / `turn.ended` / `core.stopping` / dispose | 確定 |
@@ -101,7 +101,7 @@
 | D95 | 画像入力 | `Message.image` に base64 で保存し、OpenAI は `image_url`、Anthropic は base64 image に変換 | 確定 |
 | D96 | 画像の上限 | 既定 4 MiB / 4 枚 / 合計 8 MiB。モデルの `supportsImages` / `imageMediaTypes` で制限 | 確定 |
 | D97 | 画像の範囲 | M5c は入力画像のみ。画像生成・PDF・動画・CLI 添付は対象外 | 確定 |
-| D98 | プロジェクト名 | `next-harness` から `iken-harnes` へ変更。旧パスの互換フォールバックは行わない | 確定 |
+| D98 | プロジェクト名 | `next-harness` から `Aiken-harnes` へ変更。旧パスの互換フォールバックは行わない | 確定 |
 
 ## 決定の要点
 

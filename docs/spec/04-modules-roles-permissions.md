@@ -185,8 +185,8 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 
 | OS | 既定パス |
 |---|---|
-| Linux | `$XDG_CONFIG_HOME/iken-harnes/approvals.json` (未設定なら `~/.config/iken-harnes/approvals.json`) |
-| Windows | `%APPDATA%\iken-harnes\approvals.json` |
+| Linux | `$XDG_CONFIG_HOME/Aiken-harnes/approvals.json` (未設定なら `~/.config/Aiken-harnes/approvals.json`) |
+| Windows | `%APPDATA%\Aiken-harnes\approvals.json` |
 
 - **プロジェクトの config とは分ける。** config を共有したり、AI がモジュールと一緒に config を書き換えたりしても、承認が付いてこないようにするため。
 - SQLite などのモジュール側ストアには置かない。権限の記録をモジュールに預けると循環する。コア自身が管理する。

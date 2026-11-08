@@ -1,5 +1,5 @@
 /**
- * OpenCode Go の実 API 検証。キーは ~/.config/iken-harnes/.env 等から読み込む。
+ * OpenCode Go の実 API 検証。キーは ~/.config/Aiken-harnes/.env 等から読み込む。
  * 課金が発生するため、明示的に実行したときだけ動かす。
  */
 import { readFile } from "node:fs/promises";

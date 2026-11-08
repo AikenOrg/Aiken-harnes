@@ -201,7 +201,7 @@ src/modules/provider-openai/
 - モデル ID: `opencode-go/<model-id>`。`src/modules/provider-opencode-go/models.json` に既定一覧。
 - 認証: `Authorization: Bearer <OPENCODE_API_KEY>`。
 - `x-opencode-session` にセッション ID を送る (`ModelRequest.sessionId`)。
-- `user-agent` は `iken-harnes/0.1.0` を既定とする。
+- `user-agent` は `Aiken-harnes/0.1.0` を既定とする。
 - `tool_calls` のストリーミング差分を index ごとに組み立て、finish 時に `tool_call` として返す。
 - `usage.prompt_tokens_details.cached_tokens` を `cacheRead` として返す。
 - 400 のコンテキスト長超過は `context_overflow` に変換する。

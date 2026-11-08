@@ -1,4 +1,4 @@
-# iken-harnes
+# Aiken-harnes
 
 TypeScript (Bun) 製のモジュール型エージェントハーネス。コアは AI ループ・イベント・セッション・ジョブだけを持ち、プロバイダー・ツール・永続化・UI はすべてモジュールとして疎結合に差し込む。
 
@@ -20,7 +20,7 @@ ANTHROPIC_API_KEY=... bun run src/index.ts \
   --config config/anthropic.config.json --approve-all
 
 # Web UI (OpenCode Go)。ブラウザで http://127.0.0.1:8787 を開く
-# ~/.config/iken-harnes/.env に OPENCODE_API_KEY を置く
+# ~/.config/Aiken-harnes/.env に OPENCODE_API_KEY を置く
 bun run src/index.ts --config config/m5.config.json --approve-all
 
 # Web UI の承認モーダル確認 (mock provider)

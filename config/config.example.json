@@ -2,26 +2,19 @@
   "version": 1,
   "modules": [
     {
-      "use": "../src/modules/provider-openai",
+      "use": "../src/modules/provider-opencode-go",
       "config": {
-        "model": "gpt-4.1"
+        "model": "opencode-go/glm-5.3-flash"
       }
     },
-    {
-      "use": "../src/modules/sqlite",
-      "config": {
-        "path": "../data/harness.sqlite"
-      }
-    },
-    "../src/modules/tools-fs",
+    "../src/modules/tools-read",
     {
       "use": "../src/modules/shell",
       "config": {}
-    },
-    "../src/modules/ui-tui"
+    }
   ],
   "models": {
-    "default": "openai/gpt-4.1"
+    "default": "opencode-go/glm-5.3-flash"
   },
   "restore": "none",
   "context": {
@@ -32,7 +25,9 @@
     "allow": [
       "ls",
       "git",
-      "bun"
+      "bun",
+      "wc",
+      "head"
     ]
   },
   "jobs": {
@@ -53,8 +48,8 @@
     "system": "あなたはツールを使えるアシスタントです。非同期ジョブの結果は通知と read_result で取得してください。"
   },
   "secrets": {
-    "OPENAI_API_KEY": {
-      "env": "OPENAI_API_KEY"
+    "OPENCODE_API_KEY": {
+      "env": "OPENCODE_API_KEY"
     }
   }
 }

@@ -163,6 +163,7 @@ export class TurnLoop {
           system: segments.segments,
           messages: this.#history.read(session.id),
           tools: this.#tools.specs(),
+          sessionId: session.id,
         };
 
         this.#bus.emit(

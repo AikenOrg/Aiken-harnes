@@ -58,6 +58,7 @@
 | D52 | `agent.close` の権限 | `agent.spawn` を必要とし、自分の子孫だけを対象にする。ui ロールは `session.close` で任意のセッションを閉じられる | 確定 |
 | D53 | コンテキスト上限のしきい値 | `context.overflowRatio` は既定 0.8。判定は `lastInputTokens + maxTokens > ratio * contextWindow` | 確定 |
 | D54 | ui ロールの任意 session.delete | `session.delete` を専用権限にし、ui ロールだけ付与。対象は `closed` のみ。AI ツール・サブエージェントには付与しない。`session.deleted` を発行 | 確定 |
+| D55 | ModelRequest.sessionId | プロバイダーへセッション ID を渡す。OpenCode Go の `x-opencode-session` に使う | 確定 |
 
 ## 決定の要点
 

@@ -20,6 +20,8 @@ export type ModelRequest = {
   system: PromptSegment[];
   messages: Message[];
   tools: ToolSpec[];
+  /** プロバイダーがルーティングやキャッシュに使えるセッション ID。 */
+  sessionId?: string;
   params?: {
     temperature?: number;
     maxTokens?: number;

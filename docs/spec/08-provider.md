@@ -22,6 +22,8 @@ type ModelRequest = {
   system: PromptSegment[];
   messages: Message[];
   tools: ToolSpec[];
+  /** プロバイダーがルーティング/キャッシュに使えるセッション ID。 */
+  sessionId?: string;
   params?: { temperature?: number; maxTokens?: number };
 };
 
@@ -34,6 +36,7 @@ type ModelEvent =
 
 - プロバイダーはモジュール (`roles: ["provider"]`) として実装し、`init` で `ctx.providers.register(provider)` を呼ぶ。複数ロードできる。
 - モデル ID は `"<prefix>/<model>"` 形式。接頭辞ごとに担当プロバイダーは 1 つ。同じ接頭辞の重複は起動失敗。
+- `ModelRequest.sessionId` はセッション ID をプロバイダーへ渡す。OpenCode Go は `x-opencode-session` に使う。
 - provider は最低 1 つ必要。無ければ起動失敗。
 - `models()` はロード時に呼ばれ、コアがモデル→プロバイダーの対応表を作る。
 - `stream()` はコアだけが呼ぶ。モジュール同士が直接呼ぶことはない。
@@ -136,6 +139,34 @@ src/modules/provider-openai/
   ],
   "secrets": {
     "ANTHROPIC_API_KEY": { "env": "ANTHROPIC_API_KEY" }
+  }
+}
+```
+
+## 9. OpenCode Go 実装
+
+`src/modules/provider-opencode-go` が OpenCode Go の OpenAI 互換 chat completions 実装。
+
+- エンドポイント: `https://opencode.ai/inference/go/openai/v1/chat/completions`
+- モデル ID: `opencode-go/<model-id>`。`src/modules/provider-opencode-go/models.json` に既定一覧。
+- 認証: `Authorization: Bearer <OPENCODE_API_KEY>`。
+- `x-opencode-session` にセッション ID を送る (`ModelRequest.sessionId`)。
+- `user-agent` は `next-harness/0.1.0` を既定とする。
+- `tool_calls` のストリーミング差分を index ごとに組み立て、finish 時に `tool_call` として返す。
+- `usage.prompt_tokens_details.cached_tokens` を `cacheRead` として返す。
+- 400 のコンテキスト長超過は `context_overflow` に変換する。
+- `config.logRaw` でリクエスト/SSE を `ctx.log.debug` に出す。Authorization ヘッダーはログに出さない。
+
+```jsonc
+{
+  "modules": [
+    {
+      "use": "./modules/provider-opencode-go",
+      "config": { "model": "opencode-go/glm-5.3-flash", "logRaw": false }
+    }
+  ],
+  "secrets": {
+    "OPENCODE_API_KEY": { "env": "OPENCODE_API_KEY" }
   }
 }
 ```

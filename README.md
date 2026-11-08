@@ -18,6 +18,10 @@ printf 'hello\n' | bun run src/index.ts --config config/dev.config.json --approv
 # Anthropic
 ANTHROPIC_API_KEY=... bun run src/index.ts \
   --config config/anthropic.config.json --approve-all
+
+# OpenCode Go
+OPENCODE_API_KEY=... bun run src/index.ts \
+  --config config/opencode-go.config.json --approve-all
 ```
 
 `--events` を付けるとイベントを表示する。実装状況は [`docs/impl/m1.md`](docs/impl/m1.md) を参照。
@@ -36,4 +40,4 @@ ANTHROPIC_API_KEY=... bun run src/index.ts \
 
 ## ステータス
 
-2026-11-08: M1 のコア、非同期 shell、Anthropic プロバイダーを実装。永続化・承認 UI・compaction は未実装。
+2026-11-08: M1 のコア、非同期 shell、Anthropic / OpenCode Go プロバイダーを実装。永続化・承認 UI・compaction は未実装。

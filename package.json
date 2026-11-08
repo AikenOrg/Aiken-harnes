@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Modular agent harness core (server/client, module-based)",
   "author": "aiken",
+  "license": "MIT",
   "module": "src/index.ts",
   "scripts": {
     "dev": "bun run --watch src/index.ts",

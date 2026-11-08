@@ -121,7 +121,9 @@ type Block =
 
 ## 6. リトライとタイムアウト
 
-- reasoning 指定が原因と判定できる 400 だけ、指定を外して 1 回再試行する。それ以外は自動リトライしない。`model.failed` を発行し、UI が再試行を判断する。
+- reasoning 指定が原因と判定できる 400 だけ、指定を外して 1 回再試行する。
+- 408 / 429 / 5xx と接続エラーは、ストリーム開始前に限り指数バックオフで再試行する。既定は 2 回、初回 1 秒。`Retry-After` を尊重する。設定は `maxRetries` / `retryBaseDelayMs`。
+- ストリーム開始後の切断は重複出力を避けるため再試行しない。`model.failed` を発行し、UI が再試行を判断する。
 - プロバイダー側の HTTP タイムアウトはモジュールの責務。コアは AbortSignal で中断できる。
 - レート制限・課金エラーの分類は **TBD**。
 
@@ -157,6 +159,7 @@ src/modules/provider-openai/
 - HTTP 400 の「prompt is too long」系は `code: "context_overflow"` に変換する。
 - `config.logRaw: true` でリクエスト/SSE イベントを `ctx.log.debug` に出す。ヘッダー (API キー) はログに含めない。
 - `stream: true` を必須で送る。
+- `config.maxRetries` / `retryBaseDelayMs`: 408 / 429 / 5xx / 接続エラーの再試行（既定 2 回、1 秒から指数バックオフ）。
 - `config.authStyle` は `x-api-key`（既定）または `bearer`。OpenCode Go の Anthropic 経路は `bearer` と `baseUrl` 上書きを使う。
 - `config.reasoningStyle` は `anthropic_thinking`（既定）または `none`。
 - `config.echoReasoning` は `never` / `tool_turns` / `always`（Anthropic の既定は `always`）。署名つき thinking を順序どおり返送する。
@@ -196,6 +199,7 @@ src/modules/provider-openai/
 - `config.echoReasoning`: `never`（既定）/ `tool_turns` / `always`。assistant の `reasoning_content` として返送する。
 - `config.reasoningField`: 返送フィールド名。既定 `reasoning_content`。
 - `config.reasoningRetry`: reasoning 起因の 400 のとき、指定を外して 1 回だけ再試行する。
+- `config.maxRetries` / `retryBaseDelayMs`: 408 / 429 / 5xx / 接続エラーの再試行（既定 2 回、1 秒から指数バックオフ）。
 - ストリームの `reasoning_content` / `reasoning` を `reasoning` イベントに変換し、`completion_tokens_details.reasoning_tokens` を `usage.reasoning` に載せる。
 
 ```jsonc

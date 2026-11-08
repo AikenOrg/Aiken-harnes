@@ -222,6 +222,38 @@ describe("OpenCode Go reasoning", () => {
     expect(toolOnly.messages[1]).toMatchObject({ reasoning_content: "thought" });
   });
 
+  test("automatically replays reasoning_content for DeepSeek models", () => {
+    const deepseekModel: ModelInfo = {
+      id: "opencode-go/deepseek-v4.1-flash",
+      provider: "provider-opencode-go",
+      contextWindow: 1_000_000,
+      maxOutput: 131_072,
+      reasoning: { supported: true, efforts: ["low", "high", "max"], toggle: true },
+    };
+    const withReasoning: Message = {
+      id: "m1",
+      role: "assistant",
+      createdAt: 1,
+      blocks: [
+        { type: "reasoning", text: "deep thought" },
+        { type: "tool_call", id: "call_1", name: "read", args: {} },
+      ],
+    };
+    const withoutReasoning: Message = {
+      id: "m2",
+      role: "assistant",
+      createdAt: 2,
+      blocks: [{ type: "tool_call", id: "call_2", name: "read", args: {} }],
+    };
+    const body = toOpenCodeGoRequest(
+      request([withReasoning, withoutReasoning]),
+      config({ echoReasoning: "never" }),
+      deepseekModel,
+    );
+    expect(body.messages[1]).toMatchObject({ reasoning_content: "deep thought" });
+    expect(body.messages[2]).toMatchObject({ reasoning_content: "" });
+  });
+
   test("streams reasoning and reasoning tokens separately from text", async () => {
     const sse = [
       'data: {"choices":[{"delta":{"reasoning_content":"think"}}]}\n',
@@ -282,6 +314,48 @@ describe("OpenCode Go reasoning", () => {
     expect(second[0]).toMatchObject({ type: "reasoning_ignored" });
     expect(calls).toBe(3);
     expect(bodies[2]?.reasoning_effort).toBeUndefined();
+  });
+
+  test("retries transient 429/5xx responses and network errors", async () => {
+    let calls = 0;
+    const provider = new OpenCodeGoProvider({
+      config: config({ maxRetries: 2, retryBaseDelayMs: 0 }),
+      getApiKey: () => "secret",
+      fetch: async () => {
+        calls += 1;
+        if (calls === 1) return new Response("rate limited", { status: 429 });
+        if (calls === 2) throw new Error("connection reset");
+        return new Response('data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}\n', {
+          status: 200,
+        });
+      },
+    });
+    const events = [];
+    for await (const event of provider.stream(request([]), new AbortController().signal)) events.push(event);
+    expect(calls).toBe(3);
+    expect(events.some((event) => event.type === "text")).toBe(true);
+  });
+
+  test("gives up after maxRetries for persistent 5xx", async () => {
+    let calls = 0;
+    const provider = new OpenCodeGoProvider({
+      config: config({ maxRetries: 1, retryBaseDelayMs: 0 }),
+      getApiKey: () => "secret",
+      fetch: async () => {
+        calls += 1;
+        return new Response("server error", { status: 503 });
+      },
+    });
+    let caught: unknown;
+    try {
+      for await (const _event of provider.stream(request([]), new AbortController().signal)) {
+        // drain
+      }
+    } catch (error) {
+      caught = error;
+    }
+    expect(calls).toBe(2);
+    expect((caught as { code?: string }).code).toBe("api_error");
   });
 
   test("does not retry an unrelated 400", async () => {

@@ -21,6 +21,8 @@ function config(logRaw = false): AnthropicConfig {
     authStyle: "x-api-key",
     reasoningStyle: "anthropic_thinking",
     echoReasoning: "always",
+    maxRetries: 0,
+    retryBaseDelayMs: 0,
   };
 }
 
@@ -283,6 +285,23 @@ describe("Anthropic reasoning", () => {
       { type: "reasoning_end", opaque: { kind: "redacted", data: "enc" } },
       { type: "stop", reason: "end" },
     ]);
+  });
+
+  test("retries a transient 429 before streaming", async () => {
+    let calls = 0;
+    const provider = new AnthropicProvider({
+      config: { ...config(), maxRetries: 2, retryBaseDelayMs: 0 },
+      getApiKey: () => "secret",
+      fetch: async () => {
+        calls += 1;
+        if (calls === 1) return new Response("rate limited", { status: 429 });
+        return new Response('data: {"type":"message_stop"}\n', { status: 200 });
+      },
+    });
+    const events = [];
+    for await (const event of provider.stream(request([]), new AbortController().signal)) events.push(event);
+    expect(calls).toBe(2);
+    expect(events.at(-1)).toEqual({ type: "stop", reason: "end" });
   });
 
   test("supports bearer auth for the OpenCode Go Anthropic endpoint", async () => {

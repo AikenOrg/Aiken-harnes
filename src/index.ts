@@ -86,6 +86,27 @@ async function main(): Promise<void> {
     const payload = event.payload as { tool?: string; callId?: string };
     process.stdout.write(`\n[tool] ${payload.tool ?? "?"} (${payload.callId ?? "?"})\n`);
   });
+  harness.on("model.failed", (event) => {
+    const payload = event.payload as {
+      error?: { code?: string; message?: string };
+    };
+    if (payload.error) {
+      process.stderr.write(
+        `\n[model error ${payload.error.code ?? "?"}] ${payload.error.message ?? ""}\n`,
+      );
+    }
+  });
+  harness.on("tool.failed", (event) => {
+    const payload = event.payload as {
+      tool?: string;
+      error?: { code?: string; message?: string };
+    };
+    if (payload.error) {
+      process.stderr.write(
+        `\n[tool error ${payload.tool ?? "?"} ${payload.error.code ?? "?"}] ${payload.error.message ?? ""}\n`,
+      );
+    }
+  });
   harness.on("turn.ended", (event) => {
     const payload = event.payload as { reason?: string };
     process.stdout.write(`\n[turn ${payload.reason ?? "?"}]\n`);

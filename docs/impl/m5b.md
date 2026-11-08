@@ -148,6 +148,17 @@ reasoning は OpenAI 互換では出力トークンに含まれる。長い reas
 - UI は `truncated (length)` バッジとトーストを表示する。
 - reasoning 用の設定例では `provider-opencode-go` の `maxTokens` を 16384 にしている。長い reasoning が頻発する場合は増やす。
 
+## 8.2 長いセッションの turn error
+
+長いツール往復の途中で `[turn error]` になり、CLI に理由が出ない事象を調査した。同じ履歴を復元して再実行すると完了したため、恒久的な履歴破損ではなく一時的な provider エラー（429 / 5xx / 接続断）の可能性が高い。
+
+- CLI が `model.failed` / `tool.failed` の code と message を表示するようにした。
+- OpenAI 互換 / Anthropic の両方で、ストリーム開始前の 408 / 429 / 5xx / 接続エラーを指数バックオフで再試行する。
+  - `maxRetries`（既定 2）、`retryBaseDelayMs`（既定 1000）。
+  - `Retry-After` を尊重する。
+  - ストリーム開始後は重複出力を避けるため再試行しない。
+- DeepSeek 系は `echoReasoning: "never"` でも `reasoning_content` を自動返送する（OpenCode の requireReasoning 相当）。
+
 ## 9. 未確認・制限
 
 - すべてのモデルの reasoning 対応を実測したわけではない。UI は実測またはモデル一覧の能力があるものだけ表示し、それ以外は非対応扱い。

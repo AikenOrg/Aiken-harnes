@@ -54,6 +54,8 @@ const configSchema = z.object({
   authStyle: z.enum(["x-api-key", "bearer"]).default("x-api-key"),
   reasoningStyle: z.enum(["anthropic_thinking", "none"]).default("anthropic_thinking"),
   echoReasoning: z.enum(["never", "tool_turns", "always"]).default("always"),
+  maxRetries: z.number().int().nonnegative().default(2),
+  retryBaseDelayMs: z.number().int().nonnegative().default(1_000),
 });
 
 export type AnthropicConfig = z.infer<typeof configSchema>;
@@ -331,6 +333,42 @@ async function* sseEvents(
   }
 }
 
+function isTransientStatus(status: number): boolean {
+  return status === 408 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+}
+
+function retryAfterMs(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1_000, 10_000);
+  const date = Date.parse(value);
+  return Number.isFinite(date) ? Math.max(0, Math.min(date - Date.now(), 10_000)) : undefined;
+}
+
+function retryDelay(
+  baseMs: number,
+  attempt: number,
+  signal: AbortSignal,
+  overrideMs?: number,
+): Promise<void> {
+  const delay = overrideMs ?? baseMs * 2 ** attempt;
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new Error("aborted"));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, delay);
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(new Error("aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 function mapStopReason(reason: string | undefined): StopReason {
   if (reason === "tool_use") return "tool_use";
   if (reason === "max_tokens") return "length";
@@ -375,6 +413,31 @@ export class AnthropicProvider implements Provider {
   #getApiKey: () => string;
   #log: (message: string, meta?: unknown) => void;
 
+  async #fetchWithRetry(input: string, init: RequestInit, signal: AbortSignal): Promise<Response> {
+    const maxRetries = this.#config.maxRetries;
+    for (let attempt = 0; ; attempt += 1) {
+      let response: Response | undefined;
+      try {
+        response = await this.#fetch(input, init);
+      } catch (error) {
+        if (signal.aborted) throw error;
+        if (attempt >= maxRetries) throw error;
+        this.#log(`anthropic request failed; retrying (${attempt + 1}/${maxRetries})`);
+        await retryDelay(this.#config.retryBaseDelayMs, attempt, signal);
+        continue;
+      }
+      if (!isTransientStatus(response.status) || attempt >= maxRetries) return response;
+      try {
+        await response.body?.cancel();
+      } catch {
+        // ignore
+      }
+      const retryAfter = retryAfterMs(response.headers.get("retry-after"));
+      this.#log(`anthropic ${response.status}; retrying (${attempt + 1}/${maxRetries})`);
+      await retryDelay(this.#config.retryBaseDelayMs, attempt, signal, retryAfter);
+    }
+  }
+
   constructor(options: AnthropicProviderOptions) {
     this.#config = options.config;
     this.#fetch = options.fetch;
@@ -417,21 +480,25 @@ export class AnthropicProvider implements Provider {
     const body = toAnthropicRequest(request, this.#config, model);
 
     if (this.#config.logRaw) this.#log("anthropic request", { model: body.model, body });
-    const response = await this.#fetch(this.#config.baseUrl, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(this.#config.authStyle === "bearer"
-          ? { authorization: `Bearer ${apiKey}` }
-          : { "x-api-key": apiKey }),
-        "anthropic-version": "2023-06-01",
-        ...(request.sessionId !== undefined
-          ? { "x-opencode-session": request.sessionId }
-          : {}),
+    const response = await this.#fetchWithRetry(
+      this.#config.baseUrl,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(this.#config.authStyle === "bearer"
+            ? { authorization: `Bearer ${apiKey}` }
+            : { "x-api-key": apiKey }),
+          "anthropic-version": "2023-06-01",
+          ...(request.sessionId !== undefined
+            ? { "x-opencode-session": request.sessionId }
+            : {}),
+        },
+        body: JSON.stringify(body),
+        signal,
       },
-      body: JSON.stringify(body),
       signal,
-    });
+    );
 
     if (!response.ok) {
       const text = await response.text();

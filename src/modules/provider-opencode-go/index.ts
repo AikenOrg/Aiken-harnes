@@ -65,6 +65,10 @@ const configSchema = z.object({
   reasoningField: z.string().default("reasoning_content"),
   /** reasoning 指定が原因の 400 のとき、指定を外して 1 回だけ再試行する。 */
   reasoningRetry: z.boolean().default(true),
+  /** 429 / 5xx / 接続エラーの最大再試行回数。 */
+  maxRetries: z.number().int().nonnegative().default(2),
+  /** 再試行の初回待ち時間。以降は指数バックオフ。 */
+  retryBaseDelayMs: z.number().int().nonnegative().default(1_000),
 });
 
 export type OpenCodeGoConfig = z.infer<typeof configSchema>;
@@ -181,14 +185,60 @@ function applyReasoning(
   return true;
 }
 
-function replayedReasoning(message: Message, config: OpenCodeGoConfig, hasToolCalls: boolean): string | undefined {
-  if (config.echoReasoning === "never") return undefined;
-  if (config.echoReasoning === "tool_turns" && !hasToolCalls) return undefined;
+function isTransientStatus(status: number): boolean {
+  return status === 408 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+}
+
+function retryAfterMs(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1_000, 10_000);
+  const date = Date.parse(value);
+  return Number.isFinite(date) ? Math.max(0, Math.min(date - Date.now(), 10_000)) : undefined;
+}
+
+function retryDelay(
+  baseMs: number,
+  attempt: number,
+  signal: AbortSignal,
+  overrideMs?: number,
+): Promise<void> {
+  const delay = overrideMs ?? baseMs * 2 ** attempt;
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new Error("aborted"));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, delay);
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(new Error("aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+function replayedReasoning(
+  message: Message,
+  config: OpenCodeGoConfig,
+  hasToolCalls: boolean,
+  modelId: string,
+): string | undefined {
+  // DeepSeek 系は thinking mode で reasoning_content の返送を要求する。
+  // OpenCode の requireReasoning と同じく、既定の never でも自動で返す。
+  const deepseek = modelId.toLowerCase().includes("deepseek");
+  const mode = deepseek && config.echoReasoning === "never" ? "always" : config.echoReasoning;
+  if (mode === "never") return undefined;
+  if (mode === "tool_turns" && !hasToolCalls) return undefined;
   const text = message.blocks
     .filter((block) => block.type === "reasoning")
     .map((block) => block.text)
     .join("");
-  return text.length > 0 ? text : undefined;
+  if (text.length > 0) return text;
+  return deepseek ? "" : undefined;
 }
 
 function toolCallArgs(block: ToolCallBlock): OpenAIToolCall {
@@ -223,7 +273,7 @@ export function toOpenCodeGoRequest(
         content: text.length > 0 ? text : null,
       };
       if (toolCalls.length > 0) entry.tool_calls = toolCalls;
-      const replayed = replayedReasoning(message, config, toolCalls.length > 0);
+      const replayed = replayedReasoning(message, config, toolCalls.length > 0, model.id);
       if (replayed !== undefined) {
         (entry as unknown as Record<string, unknown>)[config.reasoningField] = replayed;
       }
@@ -383,6 +433,31 @@ export class OpenCodeGoProvider implements Provider {
   #models: ModelEntry[];
   #reasoningUnsupported = new Set<string>();
 
+  async #fetchWithRetry(input: string, init: RequestInit, signal: AbortSignal): Promise<Response> {
+    const maxRetries = this.#config.maxRetries;
+    for (let attempt = 0; ; attempt += 1) {
+      let response: Response | undefined;
+      try {
+        response = await this.#fetch(input, init);
+      } catch (error) {
+        if (signal.aborted) throw error;
+        if (attempt >= maxRetries) throw error;
+        this.#log(`opencode-go request failed; retrying (${attempt + 1}/${maxRetries})`);
+        await retryDelay(this.#config.retryBaseDelayMs, attempt, signal);
+        continue;
+      }
+      if (!isTransientStatus(response.status) || attempt >= maxRetries) return response;
+      try {
+        await response.body?.cancel();
+      } catch {
+        // ignore
+      }
+      const retryAfter = retryAfterMs(response.headers.get("retry-after"));
+      this.#log(`opencode-go ${response.status}; retrying (${attempt + 1}/${maxRetries})`);
+      await retryDelay(this.#config.retryBaseDelayMs, attempt, signal, retryAfter);
+    }
+  }
+
   constructor(options: OpenCodeGoProviderOptions) {
     this.#config = options.config;
     this.#fetch = options.fetch;
@@ -461,12 +536,12 @@ export class OpenCodeGoProvider implements Provider {
     };
 
     if (this.#config.logRaw) this.#log("opencode-go request", { model: body.model, body });
-    let response = await this.#fetch(this.#config.baseUrl, {
+    let response = await this.#fetchWithRetry(this.#config.baseUrl, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
       signal,
-    });
+    }, signal);
     if (!response.ok) {
       let text = await response.text();
       const hasReasoning = body.reasoning_effort !== undefined || body.thinking !== undefined;
@@ -480,12 +555,12 @@ export class OpenCodeGoProvider implements Provider {
           type: "reasoning_ignored",
           reason: `${model.id} rejected the reasoning parameter`,
         };
-        response = await this.#fetch(this.#config.baseUrl, {
+        response = await this.#fetchWithRetry(this.#config.baseUrl, {
           method: "POST",
           headers,
           body: JSON.stringify(body),
           signal,
-        });
+        }, signal);
         if (!response.ok) text = await response.text();
       }
       if (!response.ok) {

@@ -96,6 +96,8 @@
 | D90 | reasoning 非対応 | エラーにせず無視し、`reasoning_ignored` とセッション診断に残す | 確定 |
 | D91 | reasoning の UI | モデルの実測能力があるものだけ強度選択を出す。MiniMax OpenAI 経路は非対応 | 確定 |
 | D92 | 出力トークン上限 | `length` は completed にせず `turn.ended.reason = "length"`。assistant は `truncated`、ジョブは failed (code: length) | 確定 |
+| D93 | 一時的な provider エラー | 408/429/5xx/接続エラーはストリーム開始前のみ最大 2 回再試行。開始後は重複出力を避けるため再試行しない | 確定 |
+| D94 | DeepSeek の reasoning 返送 | `echoReasoning` が never でも DeepSeek は `reasoning_content` を自動返送 | 確定 |
 
 ## 決定の要点
 

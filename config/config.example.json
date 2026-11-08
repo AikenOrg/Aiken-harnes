@@ -27,7 +27,9 @@
       "git",
       "bun",
       "wc",
-      "head"
+      "head",
+      "echo",
+      "printf"
     ]
   },
   "jobs": {

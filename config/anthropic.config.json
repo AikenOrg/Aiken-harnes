@@ -8,15 +8,32 @@
         "logRaw": false
       }
     },
-    { "use": "../src/modules/tools-read" },
-    { "use": "../src/modules/shell" }
+    {
+      "use": "../src/modules/tools-read"
+    },
+    {
+      "use": "../src/modules/shell"
+    }
   ],
-  "models": { "default": "anthropic/claude-sonnet-4-5" },
+  "models": {
+    "default": "anthropic/claude-sonnet-4-5"
+  },
   "restore": "none",
-  "context": { "overflowRatio": 0.8 },
+  "context": {
+    "overflowRatio": 0.8
+  },
   "shell": {
     "mode": "whitelist",
-    "allow": ["ls", "cat", "git", "bun", "wc", "head"]
+    "allow": [
+      "ls",
+      "cat",
+      "git",
+      "bun",
+      "wc",
+      "head",
+      "echo",
+      "printf"
+    ]
   },
   "jobs": {
     "defaultTimeoutMs": 300000,
@@ -28,12 +45,16 @@
     "maxNotificationChars": 2000,
     "resultTtlDays": 30
   },
-  "log": { "level": "info" },
+  "log": {
+    "level": "info"
+  },
   "dataDir": "../data",
   "prompt": {
     "system": "あなたはツールを使えるアシスタントです。非同期ジョブの結果は通知と read_result で取得してください。"
   },
   "secrets": {
-    "ANTHROPIC_API_KEY": { "env": "ANTHROPIC_API_KEY" }
+    "ANTHROPIC_API_KEY": {
+      "env": "ANTHROPIC_API_KEY"
+    }
   }
 }

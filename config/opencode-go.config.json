@@ -9,15 +9,32 @@
         "logRaw": false
       }
     },
-    { "use": "../src/modules/tools-read" },
-    { "use": "../src/modules/shell" }
+    {
+      "use": "../src/modules/tools-read"
+    },
+    {
+      "use": "../src/modules/shell"
+    }
   ],
-  "models": { "default": "opencode-go/glm-5.3-flash" },
+  "models": {
+    "default": "opencode-go/glm-5.3-flash"
+  },
   "restore": "none",
-  "context": { "overflowRatio": 0.8 },
+  "context": {
+    "overflowRatio": 0.8
+  },
   "shell": {
     "mode": "whitelist",
-    "allow": ["ls", "cat", "git", "bun", "wc", "head"]
+    "allow": [
+      "ls",
+      "cat",
+      "git",
+      "bun",
+      "wc",
+      "head",
+      "echo",
+      "printf"
+    ]
   },
   "jobs": {
     "defaultTimeoutMs": 300000,
@@ -29,8 +46,12 @@
     "maxNotificationChars": 2000,
     "resultTtlDays": 30
   },
-  "log": { "level": "info" },
+  "log": {
+    "level": "info"
+  },
   "secrets": {
-    "OPENCODE_API_KEY": { "env": "OPENCODE_API_KEY" }
+    "OPENCODE_API_KEY": {
+      "env": "OPENCODE_API_KEY"
+    }
   }
 }

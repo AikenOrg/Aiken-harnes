@@ -20,8 +20,8 @@ ANTHROPIC_API_KEY=... bun run src/index.ts \
   --config config/anthropic.config.json --approve-all
 
 # OpenCode Go
-OPENCODE_API_KEY=... bun run src/index.ts \
-  --config config/opencode-go.config.json --approve-all
+# .env に OPENCODE_API_KEY を書けば Bun が自動で読み込む
+bun run src/index.ts --config config/opencode-go.config.json --approve-all
 ```
 
 `--events` を付けるとイベントを表示する。実装状況は [`docs/impl/m1.md`](docs/impl/m1.md) を参照。

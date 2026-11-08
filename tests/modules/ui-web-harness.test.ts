@@ -19,6 +19,7 @@ afterEach(async () => {
 });
 
 class SlowProvider {
+  modelsSeen: string[] = [];
   models(): ModelInfo[] {
     return [
       {
@@ -28,10 +29,18 @@ class SlowProvider {
         maxOutput: 1_000,
         supportsTools: true,
       },
+      {
+        id: "slow/other",
+        provider: "slow",
+        contextWindow: 100_000,
+        maxOutput: 1_000,
+        supportsTools: true,
+      },
     ];
   }
-  async *stream(_request: unknown, signal: AbortSignal): AsyncIterable<ModelEvent> {
+  async *stream(request: unknown, signal: AbortSignal): AsyncIterable<ModelEvent> {
     if (signal.aborted) return;
+    this.modelsSeen.push((request as { model: string }).model);
     yield { type: "text", delta: "partial answer" };
     await new Promise((_resolve, reject) => {
       signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
@@ -144,12 +153,26 @@ describe("ui-web with a real harness", () => {
   test("cancelling a running turn keeps the partial response as interrupted", async () => {
     const ui = await loadModuleDefinition("./src/modules/ui-web", process.cwd());
     ui.config = { port: 0, host: "127.0.0.1" };
+    const provider = new SlowProvider();
     const { harness, port } = await startHarness([
-      providerModule(new SlowProvider() as never, "provider-slow"),
+      providerModule(provider as never, "provider-slow"),
       ui,
     ]);
     const client = await openClient(port);
     const session = await createAndSelect(client, "slow/model");
+    const switched = await client.command("session.setModel", {
+      sessionId: session.id,
+      model: "slow/other",
+    });
+    expect(switched.ok).toBe(true);
+    expect(harness.sessions.get(session.id).model).toBe("slow/other");
+    await waitFor(() =>
+      client.events.some(
+        (event) =>
+          event.type === "session.model" &&
+          (event.payload as { model?: string }).model === "slow/other",
+      ),
+    );
     const reasoning = await client.command("session.setReasoning", {
       sessionId: session.id,
       reasoning: { effort: "high" },
@@ -163,6 +186,7 @@ describe("ui-web with a real harness", () => {
         (event) => event.type === "model.delta" && event.sessionId === session.id,
       ),
     );
+    expect(provider.modelsSeen[0]).toBe("slow/other");
     const cancelled = await client.command("session.cancel", { sessionId: session.id });
     expect(cancelled.ok).toBe(true);
     await waitFor(() =>

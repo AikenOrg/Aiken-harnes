@@ -131,6 +131,7 @@ turn.ended
 - イベント型の追加は `v: 1` でよい (購読側は未知型を無視する)。
 - `model.completed.usage.reasoning` は任意。reasoning トークンを返すモデルだけ載る。
 - `session.reasoning` は設定変更・解除・無視を通知する。`reasoning: null` は解除。
+- `session.model` はモデル変更を通知する。次のターンから反映する。
 
 ## 7. 保存と再生
 

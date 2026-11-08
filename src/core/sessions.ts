@@ -91,8 +91,12 @@ export class SessionManager {
     this.get(sessionId).state = state;
   }
 
-  setModel(sessionId: string, model: string): void {
-    this.get(sessionId).model = model;
+  setModel(sessionId: string, model: string): Session {
+    const session = this.get(sessionId);
+    session.model = model;
+    delete session.reasoningIgnored;
+    this.#bus.emit("session.model", { v: 1, model }, { source: "core", sessionId });
+    return session;
   }
 
   setReasoning(sessionId: string, reasoning?: ReasoningParams): Session {

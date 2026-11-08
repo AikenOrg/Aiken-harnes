@@ -15,6 +15,8 @@
 |  |  | `model` | string | ✓ |
 |  |  | `autoWake` | boolean |  |
 |  |  | `reasoning` | { effort?: "off" \| "low" \| "medium" \| "high" \| "max", budgetTokens?: integer } |  |
+| `session.model` | セッションのモデルを変更した。次のターンから反映する。 | `v` | 1 | ✓ |
+|  |  | `model` | string | ✓ |
 | `session.reasoning` | セッションの reasoning 設定、または指定が無視されたことを通知する。 | `v` | 1 | ✓ |
 |  |  | `reasoning` | { effort?: "off" \| "low" \| "medium" \| "high" \| "max", budgetTokens?: integer } \| null |  |
 |  |  | `ignored` | string |  |

@@ -70,6 +70,11 @@ class FakeBackend implements UiBackend {
     if (!session) throw new Error("not found");
     return session;
   }
+  async setModel(sessionId: string, model: string): Promise<void> {
+    const session = this.sessions.find((item) => item.id === sessionId);
+    if (!session) throw new Error("not found");
+    session.model = model;
+  }
   async setReasoning(
     sessionId: string,
     reasoning?: { effort?: "off" | "low" | "medium" | "high" | "max"; budgetTokens?: number },
@@ -309,6 +314,16 @@ describe("ui-web protocol", () => {
     const cancelled = await client.command("session.cancel", { sessionId: session.id });
     expect(cancelled.ok).toBe(true);
     expect(backend.cancelled).toContain(session.id);
+
+    const model = await client.command("session.setModel", {
+      sessionId: session.id,
+      model: "mock/test",
+    });
+    expect(model.ok).toBe(true);
+    expect((model.result as Session).model).toBe("mock/test");
+    await expect(
+      client.command("session.setModel", { sessionId: session.id, model: "missing/model" }),
+    ).resolves.toMatchObject({ ok: false });
 
     const reasoning = await client.command("session.setReasoning", {
       sessionId: session.id,

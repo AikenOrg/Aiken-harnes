@@ -53,6 +53,10 @@ export const eventSchemas = {
     autoWake: z.boolean().optional(),
     reasoning: reasoningParamsSchema.optional(),
   }),
+  "session.model": z.object({
+    v,
+    model: z.string(),
+  }),
   "session.reasoning": z.object({
     v,
     reasoning: reasoningParamsSchema.nullable().optional(),
@@ -298,6 +302,7 @@ export const EVENT_DESCRIPTIONS = {
   "user.message": "ユーザー入力。",
   "user.cancel": "ユーザーによるキャンセル要求。",
   "session.created": "セッション作成。",
+  "session.model": "セッションのモデルを変更した。次のターンから反映する。",
   "session.reasoning": "セッションの reasoning 設定、または指定が無視されたことを通知する。",
   "session.closed": "セッション終了。",
   "session.forked": "履歴を複製して分岐。",

@@ -261,6 +261,41 @@ function shortenId(id: string): string {
   return id.length > 18 ? `${id.slice(0, 17)}…` : id;
 }
 
+function modelControls(session: Session): Node[] {
+  if (state.models.length === 0) {
+    return [h("span", { class: "muted", text: session.model })];
+  }
+  const select = h("select", { class: "m3-select model-select", "aria-label": "モデル" });
+  const models = [...state.models].sort((a, b) => a.id.localeCompare(b.id));
+  if (!models.some((item) => item.id === session.model)) {
+    models.unshift({ id: session.model, provider: "" });
+  }
+  for (const item of models) {
+    const option = h("option", { value: item.id, text: item.id });
+    if (item.id === session.model) option.selected = true;
+    select.append(option);
+  }
+  select.value = session.model;
+  select.addEventListener("change", () => {
+    const model = select.value;
+    void command<Session>("session.setModel", { sessionId: session.id, model })
+      .then((updated) => {
+        upsertSession(updated);
+        renderAll();
+        toast("モデルを変更しました（次のターンから）");
+      })
+      .catch((error: unknown) => toast(errorText(error), true));
+  });
+  return [
+    h(
+      "label",
+      { class: "model-control" },
+      h("span", { class: "muted", text: "model" }),
+      select,
+    ),
+  ];
+}
+
 function reasoningControls(session: Session): Node[] {
   const nodes: Node[] = [];
   const toggle = createSwitch("reasoning を表示", state.showReasoning, (value) => {
@@ -340,10 +375,9 @@ function renderHeader(): void {
   headerInfo.append(
     h("span", { class: "conversation-id", text: session.id }),
     createStatusChip(session.state),
-    h("span", { class: "muted", text: session.model }),
     h("span", { class: "muted", text: `${state.messageCount} messages` }),
   );
-  headerInfo.append(...reasoningControls(session));
+  headerInfo.append(...modelControls(session), ...reasoningControls(session));
   if (session.state === "active") headerProgress.append(createLinearProgress());
 }
 
@@ -983,6 +1017,18 @@ function handleEvent(event: EventEnvelope): void {
       renderHeader();
       // 起動時の auto-restore は接続後に起きるため、snapshot を取り直して木へ追加する。
       if (state.connected) void refreshSnapshot().catch(() => undefined);
+      break;
+    }
+    case "session.model": {
+      if (sessionId !== undefined) {
+        const session = state.sessions.find((item) => item.id === sessionId);
+        if (session && typeof payload.model === "string") {
+          session.model = payload.model;
+          delete session.reasoningIgnored;
+          renderHeader();
+          renderSessions();
+        }
+      }
       break;
     }
     case "session.reasoning": {

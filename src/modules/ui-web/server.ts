@@ -34,6 +34,7 @@ export type UiBackend = {
   listJobs(sessionId: string, status?: JobStatus): Promise<Job[]>;
   createSession(model: string): Promise<Session>;
   restoreSession(sessionId: string): Promise<Session>;
+  setModel(sessionId: string, model: string): Promise<void>;
   setReasoning(sessionId: string, reasoning?: ReasoningParams): Promise<void>;
   closeSession(sessionId: string): Promise<void>;
   deleteSession(sessionId: string): Promise<void>;
@@ -278,6 +279,17 @@ export function createUiServer(backend: UiBackend, config: UiWebConfig = {}): Ui
       }
       case "session.restore":
         return backend.restoreSession(requiredString(payload.sessionId, "sessionId"));
+      case "session.setModel": {
+        const sessionId = requiredString(payload.sessionId, "sessionId");
+        const model = requiredString(payload.model, "model");
+        if (!backend.listModels().some((item) => item.id === model)) {
+          throw new Error(`unknown model: ${model}`);
+        }
+        await backend.setModel(sessionId, model);
+        const session = (await backend.listSessions()).find((item) => item.id === sessionId);
+        if (!session) throw new Error(`session not found: ${sessionId}`);
+        return session;
+      }
       case "session.setReasoning": {
         const sessionId = requiredString(payload.sessionId, "sessionId");
         const raw = payload.reasoning;

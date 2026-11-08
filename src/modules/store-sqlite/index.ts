@@ -200,6 +200,32 @@ export class SqliteStore {
           );
           return;
         }
+        case "session.model": {
+          if (!event.sessionId) return;
+          const sessionId = event.sessionId;
+          const payload = event.payload as { model?: string };
+          const model = payload.model;
+          if (model === undefined || model.length === 0) return;
+          this.#enqueueOrdered(() => {
+            const row = this.#db
+              .query("SELECT meta_json FROM sessions WHERE id = ?")
+              .get(sessionId) as { meta_json: string | null } | null;
+            if (!row) return;
+            let meta: Record<string, unknown> = {};
+            if (row.meta_json) {
+              try {
+                meta = JSON.parse(row.meta_json) as Record<string, unknown>;
+              } catch {
+                meta = {};
+              }
+            }
+            delete meta.reasoningIgnored;
+            this.#db
+              .query("UPDATE sessions SET model = ?, meta_json = ?, updated_at = ? WHERE id = ?")
+              .run(model, JSON.stringify(meta), event.ts, sessionId);
+          });
+          return;
+        }
         case "session.reasoning": {
           if (!event.sessionId) return;
           const sessionId = event.sessionId;
@@ -729,6 +755,7 @@ const module: ModuleExports = {
       "message.appended",
       "history.rewritten",
       "session.created",
+      "session.model",
       "session.reasoning",
       "session.closed",
       "session.restored",

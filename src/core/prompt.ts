@@ -32,6 +32,7 @@ export type PromptTransform = (
 
 export class PromptAssembler {
   #segments = new Map<string, PromptSegment>();
+  #sessionSegments = new Map<string, Map<string, PromptSegment>>();
   #order = new Map<string, number>();
   #nextOrder = 0;
   #bus: EventBus;
@@ -72,6 +73,31 @@ export class PromptAssembler {
     });
   }
 
+  contributeForSession(sessionId: string, input: PromptSegmentInput, source: string): void {
+    if (input.stability === "static") throw new Error("session prompt fragments must be session or volatile");
+    const fragments = this.#sessionSegments.get(sessionId) ?? new Map<string, PromptSegment>();
+    if (this.#segments.has(input.id) || fragments.has(input.id)) {
+      throw new Error(`prompt fragment already exists: ${input.id}`);
+    }
+    fragments.set(input.id, {
+      id: input.id,
+      source,
+      stability: input.stability,
+      priority: input.priority,
+      content: input.content,
+    });
+    this.#order.set(input.id, this.#nextOrder++);
+    this.#sessionSegments.set(sessionId, fragments);
+  }
+
+  listForSession(sessionId: string): PromptSegment[] {
+    return [...(this.#sessionSegments.get(sessionId)?.values() ?? [])];
+  }
+
+  deleteSession(sessionId: string): void {
+    this.#sessionSegments.delete(sessionId);
+  }
+
   remove(id: string, source: string): void {
     const segment = this.#segments.get(id);
     if (!segment) return;
@@ -89,7 +115,10 @@ export class PromptAssembler {
   }
 
   async assemble(session: Session, transform?: PromptTransform): Promise<AssembledPrompt> {
-    let segments = this.normalize([...this.#segments.values()]);
+    let segments = this.normalize([
+      ...this.#segments.values(),
+      ...(this.#sessionSegments.get(session.id)?.values() ?? []),
+    ]);
     if (transform) {
       segments = this.normalize(await transform(segments, session));
     }

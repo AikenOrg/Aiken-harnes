@@ -44,6 +44,14 @@ export const contextConfigSchema = z.object({
   overflowRatio: z.number().gt(0).max(1).optional(),
 });
 
+export const agentsConfigSchema = z.object({
+  maxDepth: z.number().int().positive().optional(),
+  maxChildren: z.number().int().positive().optional(),
+  maxAgents: z.number().int().positive().optional(),
+  maxPromptBytes: z.number().int().positive().optional(),
+  maxConcurrentModelCalls: z.number().int().positive().optional(),
+});
+
 export const logConfigSchema = z.object({
   level: z.enum(["debug", "info", "warn", "error"]).optional(),
   file: z.string().optional(),
@@ -62,6 +70,7 @@ export const configSchema = z.object({
   shell: shellConfigSchema.optional(),
   jobs: jobsConfigSchema.optional(),
   context: contextConfigSchema.optional(),
+  agents: agentsConfigSchema.optional(),
   log: logConfigSchema.optional(),
   dataDir: z.string().optional(),
   prompt: z.object({
@@ -82,3 +91,4 @@ export type HarnessConfig = z.infer<typeof configSchema>;
 export type JobsConfig = z.infer<typeof jobsConfigSchema>;
 export type ShellConfig = z.infer<typeof shellConfigSchema>;
 export type ContextConfig = z.infer<typeof contextConfigSchema>;
+export type AgentsConfig = z.infer<typeof agentsConfigSchema>;

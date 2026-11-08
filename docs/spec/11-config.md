@@ -162,6 +162,19 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 - 通知全体が `maxNotificationChars` を超えたら、超えた分を `ほか N 件: id1, id2, ...` (最大 20 件) に置き換える。AI は `read_result(id)` か `list_jobs` で取得する。
 - `autoWake` はセッション単位で上書きできる (`agent.spawn` の引数)。
 
+## 6.1 `agents`
+
+| キー | 既定 | 内容 |
+|---|---|---|
+| `maxDepth` | `3` | 親からの深さ |
+| `maxChildren` | `8` | 1 セッションの子の数 |
+| `maxAgents` | `16` | 全体のエージェント数 |
+| `maxPromptBytes` | `8192` | spawn 時の prompt+volatile の上限 |
+| `maxConcurrentModelCalls` | `4` | モデル呼び出し全体の同時数 |
+
+- 上限超過は `max_depth_exceeded` / `too_many_children` / `too_many_agents` で即失敗。
+- 閉じたセッションは数えない。
+
 ## 7. `context`
 
 | キー | 既定 | 内容 |

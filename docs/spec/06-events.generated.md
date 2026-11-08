@@ -107,10 +107,11 @@
 |  |  | `childSessionId` | string | ✓ |
 |  |  | `parentSessionId` | string | ✓ |
 |  |  | `model` | string | ✓ |
-| `agent.message` | サブエージェントへのメッセージ。本文は messageId で参照する。 | `v` | 1 | ✓ |
+|  |  | `tools` | string[] | ✓ |
+| `agent.message` | サブエージェントへのメッセージ依頼。本文は含めず jobId で相関する。 | `v` | 1 | ✓ |
 |  |  | `from` | string | ✓ |
 |  |  | `to` | string | ✓ |
-|  |  | `messageId` | string | ✓ |
+|  |  | `jobId` | string | ✓ |
 | `agent.cancelled` | サブエージェントをキャンセルした。 | `v` | 1 | ✓ |
 |  |  | `sessionId` | string | ✓ |
 |  |  | `by` | "ai" \| "user" \| "timeout" \| "system" | ✓ |

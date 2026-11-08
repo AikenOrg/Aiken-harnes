@@ -15,5 +15,7 @@ export type Session = {
   autoWake?: boolean;
   /** 直近のモデル呼び出しでプロバイダーが返した usage.input。 */
   lastInputTokens?: number;
+  /** このセッションに許可されたツール名。未指定は全ツール。 */
+  toolNames?: string[];
   createdAt: number;
 };

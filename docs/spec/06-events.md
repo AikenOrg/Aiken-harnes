@@ -26,7 +26,7 @@ type EventEnvelope<TType extends string = string, TPayload = unknown> = {
 1. **本文を持たず、ID で参照する。**
    - `message.appended` は `{ v, messageId }` のみ。本文は `ctx.history.get(sessionId, messageId)` で取得する。
    - `history.rewritten` は件数のみ。内容は `ctx.history.read` で取得する。
-   - `agent.message` は `messageId` のみ。
+   - `agent.message` は `jobId` のみ（本文なし）。
    - `tool.requested` は引数を持たない。承認に必要な引数は `tool.before` フックが受け取る。
    - ジョブ結果はイベントに載せず、`read_result(jobId)` で取得する。
 2. **全ペイロードに `v: 1` を必須で付ける。** 将来の破壊的変更に備える。加算的な変更は `v: 1` のまま、削除・型変更は版を上げる。
@@ -83,7 +83,7 @@ type EventEnvelope<TType extends string = string, TPayload = unknown> = {
 
 ### 4.7 エージェント / モジュール / 権限 / コア
 
-- `agent.spawned` / `agent.message` / `agent.cancelled`: サブエージェントの操作。本文は `messageId` 参照。
+- `agent.spawned` / `agent.message` / `agent.cancelled`: サブエージェントの操作。`agent.spawned` は tools、`agent.message` は jobId を持つ。
 - `module.loaded` / `module.failed` / `module.disabled`: モジュールのライフサイクル。
 - `permission.requested` / `granted` / `denied` / `violation`: 承認と強制の記録。
 - `core.started` / `core.stopping`: コアの起動と停止。

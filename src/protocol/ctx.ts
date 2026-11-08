@@ -59,23 +59,28 @@ export type SessionApi = {
   setModel(sessionId: string, model: string): void;
 };
 
-export type AgentApi = {
-  spawn(opts: {
-    parentSessionId: string;
-    prompt?: string;
-    volatile?: string;
-    model?: string;
-    /** 省略時はサブエージェントの既定 (true)。 */
-    autoWake?: boolean;
-    task: string;
-  }): Promise<{ sessionId: string }>;
-  message(sessionId: string, text: string): Promise<void>;
-  cancel(sessionId: string, opts?: { reason?: string }): Promise<void>;
-  /** 自分の子孫セッションを閉じる。子孫も再帰的に閉じる。 */
-  close(sessionId: string, opts?: { reason?: string }): Promise<void>;
+export type AgentSpawnOptions = {
+  parentSessionId: string;
+  task: string;
+  prompt?: string;
+  volatile?: string;
+  model?: string;
+  tools?: string[];
+  autoWake?: boolean;
 };
 
-export type HookType = "prompt.assemble" | "tool.before" | "compaction.decide";
+export type AgentApi = {
+  spawn(opts: AgentSpawnOptions): Promise<{ sessionId: string; jobId: string }>;
+  send(fromSessionId: string, toSessionId: string, text: string): Promise<{ jobId: string }>;
+  /** send の互換エイリアス。 */
+  message(fromSessionId: string, toSessionId: string, text: string): Promise<{ jobId: string }>;
+  cancel(fromSessionId: string, toSessionId: string, opts?: { reason?: string }): Promise<void>;
+  /** 自分の子孫セッションを閉じる。子孫も再帰的に閉じる。 */
+  close(fromSessionId: string, toSessionId: string, opts?: { reason?: string }): Promise<void>;
+  list(fromSessionId: string): Promise<Session[]>;
+};
+
+export type HookType = "prompt.assemble" | "tool.before" | "compaction.decide" | "agent.route";
 
 export type HookApi = {
   register(type: HookType, handler: (input: unknown) => unknown): Unsubscribe;

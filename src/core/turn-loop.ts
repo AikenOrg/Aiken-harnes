@@ -8,6 +8,7 @@ import type { HistoryManager } from "./history.ts";
 import type { HookRunner } from "./hooks.ts";
 import type { JobManager } from "./jobs.ts";
 import type { IdGenerator } from "./ids.ts";
+import type { Semaphore } from "./semaphore.ts";
 import type { Logger } from "./log.ts";
 import type { PromptAssembler } from "./prompt.ts";
 import type { ProviderRegistry } from "./providers.ts";
@@ -31,6 +32,7 @@ export type TurnLoopOptions = {
   overflowRatio?: number;
   maxNotificationChars?: number;
   hasCompactor?: () => boolean;
+  modelLimiter?: Semaphore;
 };
 
 type ActiveTurn = {
@@ -58,6 +60,11 @@ function textMessage(role: "user" | "assistant" | "tool" | "notification", text:
   return { role, blocks: [{ type: "text", text }] };
 }
 
+export type TurnResult = {
+  reason: "completed" | "cancelled" | "error" | "context_overflow";
+  finalText: string;
+};
+
 export class TurnLoop {
   #bus: EventBus;
   #sessions: SessionManager;
@@ -74,6 +81,7 @@ export class TurnLoop {
   #overflowRatio: number;
   #maxNotificationChars: number;
   #hasCompactor: () => boolean;
+  #modelLimiter: Semaphore | undefined;
   #active = new Map<string, ActiveTurn>();
 
   constructor(options: TurnLoopOptions) {
@@ -92,6 +100,7 @@ export class TurnLoop {
     this.#overflowRatio = options.overflowRatio ?? 0.8;
     this.#maxNotificationChars = options.maxNotificationChars ?? 2000;
     this.#hasCompactor = options.hasCompactor ?? (() => false);
+    this.#modelLimiter = options.modelLimiter;
   }
 
   isActive(sessionId: string): boolean {
@@ -110,20 +119,29 @@ export class TurnLoop {
     for (const sessionId of [...this.#active.keys()]) this.cancel(sessionId, by, reason);
   }
 
-  async run(session: Session, text: string): Promise<void> {
+  async run(session: Session, text?: string): Promise<TurnResult> {
     const turnId = this.#ids.turn();
     const controller = new AbortController();
     this.#active.set(session.id, { turnId, controller });
     session.state = "active";
 
-    this.#bus.emit("user.message", { v: 1, text }, { source: "core", sessionId: session.id });
-    this.#history.append(session.id, textMessage("user", text));
+    if (text !== undefined) {
+      this.#bus.emit("user.message", { v: 1, text }, { source: "core", sessionId: session.id });
+      this.#history.append(session.id, textMessage("user", text));
+    }
     this.#bus.emit("turn.started", { v: 1, turnId }, { source: "core", sessionId: session.id });
 
     let ended = false;
-    const end = (reason: "completed" | "cancelled" | "error" | "context_overflow"): void => {
+    let finalText = "";
+    let result: TurnResult = { reason: "error", finalText: "" };
+    const end = (
+      reason: "completed" | "cancelled" | "error" | "context_overflow",
+      text?: string,
+    ): void => {
       if (ended) return;
       ended = true;
+      if (text !== undefined) finalText = text;
+      result = { reason, finalText };
       if (session.state !== "closed") session.state = "idle";
       this.#bus.emit(
         "turn.ended",
@@ -136,7 +154,7 @@ export class TurnLoop {
       for (let step = 0; step < this.#maxSteps; step += 1) {
         if (controller.signal.aborted) {
           end("cancelled");
-          return;
+          return result;
         }
         this.#appendNotifications(session.id);
 
@@ -144,7 +162,7 @@ export class TurnLoop {
         if (this.#contextOverflow(session, modelInfo)) {
           if (!this.#hasCompactor()) {
             end("context_overflow");
-            return;
+            return result;
           }
         }
 
@@ -162,7 +180,7 @@ export class TurnLoop {
           model: session.model,
           system: segments.segments,
           messages: this.#history.read(session.id),
-          tools: this.#tools.specs(),
+          tools: this.#tools.specs(session.toolNames),
           sessionId: session.id,
         };
 
@@ -186,6 +204,18 @@ export class TurnLoop {
 
         const provider = this.#providers.resolve(session.model);
         const providerModule = this.#providers.moduleOf(session.model);
+        let releaseModel = (): void => {};
+        if (this.#modelLimiter) {
+          try {
+            releaseModel = await this.#modelLimiter.acquire(controller.signal);
+          } catch {
+            if (controller.signal.aborted) {
+              end("cancelled", responseText);
+              return result;
+            }
+            throw new Error("model call limiter failed");
+          }
+        }
         this.#secrets.begin(providerModule);
         try {
           for await (const event of provider.stream(request, controller.signal)) {
@@ -215,8 +245,8 @@ export class TurnLoop {
                 interrupted: true,
               });
             }
-            end("cancelled");
-            return;
+            end("cancelled", responseText);
+            return result;
           }
           const harnessError = errorOf(error);
           this.#bus.emit(
@@ -229,9 +259,10 @@ export class TurnLoop {
           } else {
             end("error");
           }
-          return;
+          return result;
         } finally {
           this.#secrets.end(providerModule);
+          releaseModel();
         }
 
         if (controller.signal.aborted) {
@@ -243,7 +274,7 @@ export class TurnLoop {
             });
           }
           end("cancelled");
-          return;
+          return result;
         }
 
         this.#bus.emit(
@@ -274,7 +305,7 @@ export class TurnLoop {
             { source: "core", sessionId: session.id },
           );
           end("error");
-          return;
+          return result;
         }
 
         const blocks: Block[] = [];
@@ -287,22 +318,24 @@ export class TurnLoop {
         }
 
         if (toolCalls.size === 0) {
-          end("completed");
-          return;
+          end("completed", responseText);
+          return result;
         }
 
         for (const call of toolCalls.values()) {
           if (controller.signal.aborted) {
-            end("cancelled");
-            return;
+            end("cancelled", responseText);
+            return result;
           }
           await this.#executeTool(session, call, controller.signal);
         }
       }
       end("error");
+      return result;
     } catch (error) {
       this.#log.error("turn loop failed", error);
       end("error");
+      return result;
     } finally {
       this.#active.delete(session.id);
     }
@@ -376,6 +409,21 @@ export class TurnLoop {
       { v: 1, callId: call.id, tool: call.name, mode },
       { source: "core", sessionId: session.id },
     );
+
+    if (session.toolNames !== undefined && !session.toolNames.includes(call.name)) {
+      this.#appendToolResult(session.id, call.id, call.name, `tool not allowed for this session: ${call.name}`, true);
+      this.#bus.emit(
+        "tool.failed",
+        {
+          v: 1,
+          callId: call.id,
+          tool: call.name,
+          error: { code: "invalid_state", message: "tool not allowed for this session" },
+        },
+        { source: "core", sessionId: session.id },
+      );
+      return;
+    }
 
     if (!tool) {
       this.#appendToolResult(session.id, call.id, call.name, `tool not found: ${call.name}`, true);

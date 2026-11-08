@@ -89,6 +89,7 @@ export type ContextFactoryOptions = {
     listRestorable(): Promise<Session[]>;
     restore(sessionId: string): Promise<Session>;
   };
+  agent?: AgentApi;
   callModule?: (caller: string, target: string, method: string, args?: unknown) => Promise<unknown>;
 };
 
@@ -331,22 +332,36 @@ export function createModuleContext(
   };
 
   const agent: AgentApi = {
-    spawn: () => {
+    spawn: (spawnOptions) => {
       requireCap("agent.spawn");
       requireCap("prompt.contribute");
-      throw new Error("agent.spawn is not implemented in M1");
+      if (!options.agent) throw new Error("agent API is not available");
+      return options.agent.spawn(spawnOptions);
     },
-    message: () => {
+    send: (fromSessionId, toSessionId, text) => {
       requireCap("agent.message");
-      throw new Error("agent.message is not implemented in M1");
+      if (!options.agent) throw new Error("agent API is not available");
+      return options.agent.send(fromSessionId, toSessionId, text);
     },
-    cancel: () => {
-      requireCap("agent.spawn");
-      throw new Error("agent.cancel is not implemented in M1");
+    message: (fromSessionId, toSessionId, text) => {
+      requireCap("agent.message");
+      if (!options.agent) throw new Error("agent API is not available");
+      return options.agent.message(fromSessionId, toSessionId, text);
     },
-    close: () => {
+    cancel: (fromSessionId, toSessionId, cancelOptions) => {
       requireCap("agent.spawn");
-      throw new Error("agent.close is not implemented in M1");
+      if (!options.agent) throw new Error("agent API is not available");
+      return options.agent.cancel(fromSessionId, toSessionId, cancelOptions);
+    },
+    close: (fromSessionId, toSessionId, closeOptions) => {
+      requireCap("agent.spawn");
+      if (!options.agent) throw new Error("agent API is not available");
+      return options.agent.close(fromSessionId, toSessionId, closeOptions);
+    },
+    list: (fromSessionId) => {
+      requireCap("agent.spawn");
+      if (!options.agent) throw new Error("agent API is not available");
+      return options.agent.list(fromSessionId);
     },
   };
 
@@ -354,6 +369,7 @@ export function createModuleContext(
     register: (type: HookType, handler) => {
       if (type === "prompt.assemble") requireCap("prompt.contribute");
       else if (type === "tool.before") requireCap("tool.intercept");
+      else if (type === "agent.route") requireCap("agent.message");
       else requireRole("compactor");
       return options.hooks.register(type, moduleName, handler as (input: never) => unknown);
     },

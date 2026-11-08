@@ -36,6 +36,19 @@ export type CompactionDecision = {
   reason?: string;
 };
 
+export type AgentRouteHookInput = {
+  from: string;
+  to: string;
+  kind: "spawn" | "message";
+  text: string;
+};
+
+export type AgentRouteResult = {
+  decision?: "allow" | "deny";
+  text?: string;
+  reason?: string;
+};
+
 type HookEntry = {
   type: HookType;
   module: string;
@@ -111,6 +124,28 @@ export class HookRunner {
       if (result.args !== undefined) args = result.args;
     }
     return { decision: "allow", args };
+  }
+
+  async runAgentRoute(input: AgentRouteHookInput): Promise<{ text: string; denied?: string }> {
+    let text = input.text;
+    for (const hook of this.#hooks.filter((item) => item.type === "agent.route")) {
+      let result: AgentRouteResult | void;
+      try {
+        result = (await (hook.handler as (value: AgentRouteHookInput) => unknown)({
+          ...input,
+          text,
+        })) as AgentRouteResult | void;
+      } catch (error) {
+        this.#log(`agent.route hook failed in ${hook.module}`, error);
+        return { text, denied: `agent.route hook failed: ${hook.module}` };
+      }
+      if (!result) continue;
+      if (result.decision === "deny") {
+        return { text, denied: result.reason ?? `denied by ${hook.module}` };
+      }
+      if (result.text !== undefined) text = result.text;
+    }
+    return { text };
   }
 
   runCompactionDecide(input: CompactionDecideInput): CompactionDecision {

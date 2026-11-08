@@ -122,7 +122,7 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 | `session.manage` | `ctx.session.*` | ui, agent 系。`close` は ui ロールなら任意、それ以外は自分のセッションと子孫 |
 | `session.delete` | `ctx.session.delete` | ui ロールのみ。対象は `closed` のみ |
 | `agent.spawn` | `ctx.agent.spawn` | 任意 |
-| `agent.message` | `ctx.agent.message` | 任意 |
+| `agent.message` | `ctx.agent.send` (`message` は互換エイリアス) | 任意 |
 | `tool.register` | `ctx.tools.register` | ツール提供モジュール |
 | `tool.intercept` | `tool.before` フックの登録 | shell の承認など |
 | `module.talk:<name>` | `ctx.modules.call(name, ...)` | `talksTo` に含む相手 |
@@ -130,7 +130,7 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 - `ctx` は呼び出しのたびに権限を検査する。未承認なら `permission.denied` を発行し、例外を返す。
 - 履歴の権限検査はコアに一本化する。履歴モジュールは保存先であって、権限の番人ではない。
 - `ctx.history.restore` は `history.restore` 権限と `history-store` ロールの両方を必要とする。状態が `restoring` で履歴が空のセッションにだけ実行できる (D37)。
-- `ctx.agent.close` は `agent.spawn` を必要とし、自分の子孫だけを対象にする (D52)。
+- `ctx.agent.close` / `ctx.agent.cancel` / `ctx.agent.list` は `agent.spawn` を必要とし、自分の子孫だけを対象にする (D52)。
 - `ctx.session.close` は `session.manage`。ui ロールはユーザー操作として任意のセッションを close できる。
 - `ctx.session.delete` は専用の `session.delete` 権限を必要とし、`closed` のセッションだけを削除できる。ui ロールだけが任意の closed を削除できる。AI のツールやサブエージェントには付与しない。`session.deleted` を発行する。
 
@@ -205,6 +205,16 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 - `manifest.builtin: true` の同梱モジュールは承認を省略する。重い権限は起動時に診断ログへ出す。
 - `--approve-all` は開発用。承認をバイパスし、approvals.json を書かない。起動時に警告を出す。
 - `config.allowApproveAll: false` の環境では `--approve-all` を拒否する。
+
+## 4.6 エージェント操作
+
+- `agent.spawn` / `agent.message` は API 呼び出し時に実効強制する。
+- 対象は自分の子孫のみ。自分自身・親・兄弟は拒否。
+- `ctx.agent.spawn` の `prompt` / `volatile` は session / volatile のみ。static は追加できない。
+- `tools` は親の有効ツールの部分集合でなければならない。省略時は agent ツールを除く。
+- 深さ 3 / 子 8 / 全体 16 / prompt 8 KiB / モデル同時 4 が既定。閉じたセッションは数えない。
+- 子は復元しない。親を復元したとき、子を待っていた running ジョブは `failed (interrupted)`。
+- `agent.route` フックの登録には `agent.message` 権限が必要。
 
 ## 5. モジュール間通信
 

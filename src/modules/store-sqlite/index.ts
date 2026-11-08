@@ -398,7 +398,7 @@ export class SqliteStore {
   async listRestorable(): Promise<Session[]> {
     await this.flush();
     const rows = this.#db
-      .query("SELECT * FROM sessions WHERE state != 'closed' ORDER BY updated_at DESC")
+      .query("SELECT * FROM sessions WHERE state != 'closed' AND parent_id IS NULL ORDER BY updated_at DESC")
       .all() as SessionRow[];
     return rows.map(rowSession);
   }

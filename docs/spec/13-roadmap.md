@@ -39,6 +39,8 @@
 - 完了条件: プロセス再起動後も履歴とセッションが復元される。
 - 実装: `store-sqlite`、`session.restore`、`restore: "last"`、TTL 掃除。詳細は [../impl/m3.md](../impl/m3.md)。
 - 未実装: Web UI。
+- M4b: `ctx.agent` / `tools-agent` / `agent.route` / 同時数制限 / 子の非復元。詳細は [../impl/m4b.md](../impl/m4b.md)。
+- 実 API: 親が 2 子を並行実行し、wait/read_result で集約する動作を確認済み。
 
 ### M4: 権限と compaction (承認は実装済み)
 

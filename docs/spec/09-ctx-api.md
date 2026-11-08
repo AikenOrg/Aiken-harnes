@@ -168,29 +168,36 @@ type SessionApi = {
 type AgentApi = {
   spawn(opts: {
     parentSessionId: string;
-    prompt?: string;              // session 断片として追加
-    volatile?: string;            // volatile 断片として追加
+    task: string;
+    prompt?: string;              // session 断片
+    volatile?: string;            // volatile 断片
     model?: string;
-    autoWake?: boolean;           // 省略時はサブエージェントの既定 true
-    task: string;                 // 最初の user メッセージ
-  }): Promise<{ sessionId: string }>;
-  message(sessionId: string, text: string): Promise<void>;
-  cancel(sessionId: string, opts?: { reason?: string }): Promise<void>;
-  close(sessionId: string, opts?: { reason?: string }): Promise<void>;
+    tools?: string[];
+    autoWake?: boolean;
+  }): Promise<{ sessionId: string; jobId: string }>;
+  send(fromSessionId: string, toSessionId: string, text: string): Promise<{ jobId: string }>;
+  message(fromSessionId: string, toSessionId: string, text: string): Promise<{ jobId: string }>;
+  cancel(fromSessionId: string, toSessionId: string, opts?: { reason?: string }): Promise<void>;
+  close(fromSessionId: string, toSessionId: string, opts?: { reason?: string }): Promise<void>;
+  list(fromSessionId: string): Promise<Session[]>;
 };
 ```
 
 - `spawn` は `agent.spawn` **かつ** `prompt.contribute` が必要。
-- `prompt` / `volatile` で static 断片は変更できない。
-- `message` は `agent.message` が必要。宛先は自分の子孫のみ。
-- `cancel` は自分の子孫のみ。実行中ターンとジョブをキャンセルする。
-- `close` は `agent.spawn` 権限を必要とし、自分の子孫だけを閉じる (D52)。子孫も再帰的に閉じ、実行中ターンとジョブは `by: "system"` で停止する。
+- `send` / `message` は `agent.message` が必要。
+- `cancel` / `close` / `list` は `agent.spawn` が必要。対象は自分の子孫のみ。
+- `spawn` の `prompt` / `volatile` は session / volatile 断片。static は変更できない。
+- `tools` は親の有効ツールの部分集合。省略時は agent ツールを除いた親のツール。
+- `send` は子が idle なら新ターン、実行中なら現在のターンの後にキューされる。
+- `cancel` は対象と子孫の現在ターンを中断し、実行中ジョブをキャンセルする。セッションは idle に戻る。
+- `close` は対象と子孫を再帰的に closed にし、ジョブを `by: "system"` でキャンセルする。
+- `list` は自分の子孫を返す。
 
 ### 2.9 `ctx.hooks`
 
 ```ts
 type HookApi = {
-  register(type: "prompt.assemble" | "tool.before" | "compaction.decide", handler): () => void;
+  register(type: "prompt.assemble" | "tool.before" | "compaction.decide" | "agent.route", handler): () => void;
 };
 ```
 

@@ -13,6 +13,7 @@
 | `prompt.assemble` | `prompt.contribute` |
 | `tool.before` | `tool.intercept` |
 | `compaction.decide` | `compactor` ロール |
+| `agent.route` | `agent.message` |
 
 ## 2. `prompt.assemble`
 
@@ -91,3 +92,24 @@ type CompactionDecideHook = (input: {
 - 登録順はモジュールのロード順に従う。同じモジュール内では登録順。
 - フックの追加・削除はロード完了後に許可しない (実行中の順序を安定させるため)。
 - フックの実行中にフックを登録しても、その呼び出しには反映しない。
+
+## 6. `agent.route`
+
+```ts
+type AgentRouteHook = (input: {
+  from: string;
+  to: string;
+  kind: "spawn" | "message";
+  text: string;
+}) => {
+  decision?: "allow" | "deny";
+  text?: string;
+  reason?: string;
+} | void;
+```
+
+- `spawn` / `send` の直前に呼ぶ。
+- `deny` は `agent_route_denied` として呼び出し元へ返る。
+- `text` を返すと送信内容を書き換える。
+- 登録には `agent.message` 権限が必要。
+- M4b では仕組みのみ。チーム規則は別モジュールで実装する。

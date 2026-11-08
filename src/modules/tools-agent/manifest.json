@@ -1,0 +1,21 @@
+{
+  "name": "tools-agent",
+  "version": "0.1.0",
+  "roles": [],
+  "builtin": true,
+  "critical": false,
+  "runner": "inprocess",
+  "main": "index.ts",
+  "permissions": [
+    { "cap": "tool.register" },
+    { "cap": "agent.spawn" },
+    { "cap": "agent.message" },
+    { "cap": "prompt.contribute" }
+  ],
+  "tools": [
+    { "name": "spawn_agent", "mode": "sync" },
+    { "name": "send_message", "mode": "sync" },
+    { "name": "list_agents", "mode": "sync" },
+    { "name": "close_agent", "mode": "sync" }
+  ]
+}

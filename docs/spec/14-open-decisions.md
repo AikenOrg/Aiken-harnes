@@ -74,6 +74,14 @@
 | D68 | 承認前のコード実行 | ModuleLoader は記述子を返し、承認後に activate/import する | 確定 |
 | D69 | 権限削減の自動更新 | `codeOnlyHash` を内部保存し、コード変更なしの権限削減は自動更新 | 確定 |
 | D70 | `--approve-all` | 開発用。記録を書かず、`allowApproveAll: false` で拒否 | 確定 |
+| D71 | エージェント依頼 | 非同期ジョブ化。spawn/send は jobId を返し、子の turn.ended で done/failed | 確定 |
+| D72 | モデル向けエージェントツール | builtin `tools-agent` が spawn_agent / send_message / list_agents / close_agent を提供 | 確定 |
+| D73 | `agent.route` フック | 登録権限は `agent.message`。拒否は `agent_route_denied` | 確定 |
+| D74 | `ctx.agent` の呼び出し元 | `fromSessionId` を明示的に渡す。`message` は `send` の互換エイリアス | 確定 |
+| D75 | エージェント上限 | 深さ3 / 子8 / 全体16 / prompt 8 KiB / モデル同時4。設定で変更可 | 確定 |
+| D76 | 子の復元 | 子は保存するが復元しない。親復元時の running agent ジョブは failed (interrupted) | 確定 |
+| D77 | モデル同時数 | `agents.maxConcurrentModelCalls` のセマフォで全体を制限 | 確定 |
+| D78 | autoWake の連続回数 | `jobs.maxAutoWakeStreak` を子にも適用 | 確定 |
 
 ## 決定の要点
 

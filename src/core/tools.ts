@@ -32,6 +32,14 @@ export class ToolRegistry {
     return [...this.#tools.values()];
   }
 
+  names(): string[] {
+    return this.list().map((tool) => tool.name);
+  }
+
+  isAgentTool(name: string): boolean {
+    return this.#tools.get(name)?.agentTool === true;
+  }
+
   declarations(): ToolDeclaration[] {
     return this.list().map((tool) => {
       const declaration: ToolDeclaration = { name: tool.name, mode: tool.mode };
@@ -40,14 +48,17 @@ export class ToolRegistry {
     });
   }
 
-  specs(): ToolSpec[] {
-    return this.list().map((tool) => {
-      const jsonSchema = z.toJSONSchema(tool.input, { io: "input" });
-      return {
-        name: tool.name,
-        description: tool.description,
-        inputSchema: jsonSchema as Record<string, unknown>,
-      };
-    });
+  specs(toolNames?: readonly string[]): ToolSpec[] {
+    const allowed = toolNames === undefined ? undefined : new Set(toolNames);
+    return this.list()
+      .filter((tool) => allowed === undefined || allowed.has(tool.name))
+      .map((tool) => {
+        const jsonSchema = z.toJSONSchema(tool.input, { io: "input" });
+        return {
+          name: tool.name,
+          description: tool.description,
+          inputSchema: jsonSchema as Record<string, unknown>,
+        };
+      });
   }
 }

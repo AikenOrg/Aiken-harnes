@@ -96,7 +96,7 @@ CREATE TABLE job_results (
 
 | メソッド | 引数 | 返り値 |
 |---|---|---|
-| `listRestorable()` | — | `Session[]` (`closed` 以外、updated_at 降順) |
+| `listRestorable()` | — | `Session[]` (`closed` 以外かつ `parent_id IS NULL`、updated_at 降順) |
 | `latestRestorable()` | — | `Session \| undefined`。`parent_id IS NULL` の最上位のみ |
 | `load(id)` | sessionId | `Session \| undefined` |
 
@@ -155,6 +155,7 @@ session.restore(id)
 - 対象は `status != 'running'` かつ `notified = 1` かつ `finished_at < now - ttlDays`。
 - 既定 `ttlDays = 30`。未通知・実行中は削除しない。
 - `session.delete` は `closed` のみ。DB では `session.deleted` を購読して `sessions` を削除し、カスケードで messages / job_results を消す。
+- 子セッションは DB に保存するが復元対象外。`session.restore(childId)` は拒否する。
 
 ## 7. 書き込みの直列化
 

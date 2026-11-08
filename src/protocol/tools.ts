@@ -44,5 +44,7 @@ export type ToolDefinition = {
   mode: ToolMode;
   /** async ツールのタイムアウト。 */
   timeoutMs?: number;
+  /** エージェント操作ツール。子の既定ツールから除外する。 */
+  agentTool?: boolean;
   handler: (args: unknown, ctx: ToolContext) => Promise<ToolResult | void> | ToolResult | void;
 };

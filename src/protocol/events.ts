@@ -200,12 +200,13 @@ export const eventSchemas = {
     childSessionId: z.string(),
     parentSessionId: z.string(),
     model: z.string(),
+    tools: z.array(z.string()),
   }),
   "agent.message": z.object({
     v,
     from: z.string(),
     to: z.string(),
-    messageId: z.string(),
+    jobId: z.string(),
   }),
   "agent.cancelled": z.object({
     v,
@@ -312,7 +313,7 @@ export const EVENT_DESCRIPTIONS = {
   "compaction.requested": "compaction の実行要求。",
   "compaction.completed": "compaction 完了。",
   "agent.spawned": "サブエージェントを開始した。",
-  "agent.message": "サブエージェントへのメッセージ。本文は messageId で参照する。",
+  "agent.message": "サブエージェントへのメッセージ依頼。本文は含めず jobId で相関する。",
   "agent.cancelled": "サブエージェントをキャンセルした。",
   "module.loaded": "モジュールのロード完了。",
   "module.failed": "モジュールの失敗。",

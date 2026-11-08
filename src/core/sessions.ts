@@ -13,6 +13,7 @@ export type CreateSessionOptions = {
   model: string;
   parentId?: string;
   autoWake?: boolean;
+  toolNames?: string[];
 };
 
 /** コアが最小限保持するセッション状態。履歴は HistoryManager が持つ。 */
@@ -38,6 +39,7 @@ export class SessionManager {
       createdAt: Date.now(),
     };
     if (options.parentId !== undefined) session.parentId = options.parentId;
+    if (options.toolNames !== undefined) session.toolNames = [...options.toolNames];
     this.#sessions.set(session.id, session);
 
     const payload: { v: 1; model: string; autoWake: boolean; parentId?: string } = {

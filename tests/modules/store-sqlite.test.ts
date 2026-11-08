@@ -488,6 +488,38 @@ describe("store-sqlite", () => {
     await h.stop();
   });
 
+  test("restores parent only and marks running agent jobs interrupted", async () => {
+    const dir = await tempDir();
+    const db = join(dir, "harness.sqlite");
+    const h1 = await makeHarness(db, "agentstore1");
+    await h1.start();
+    const parent = h1.createSession();
+    const child = h1.sessions.create({ model: "mock/script", parentId: parent.id });
+    await h1.flushPersistence();
+    await h1.stop();
+
+    const raw = new Database(db);
+    raw
+      .query(
+        "INSERT INTO job_results (job_id, session_id, call_id, tool, status, notified, summary, size, result, error_code, created_at, finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run("agent_job", parent.id, "a1", "agent.spawn", "running", 0, null, null, null, null, Date.now(), null);
+    raw.close();
+
+    const h2 = await makeHarness(db, "agentstore2");
+    await h2.start();
+    const restorable = await h2.listRestorable();
+    expect(restorable.map((session) => session.id)).toEqual([parent.id]);
+    await h2.restoreSession(parent.id);
+    expect(h2.sessions.tryGet(child.id)).toBeUndefined();
+    const job = h2.jobs.get("agent_job");
+    expect(job?.status).toBe("failed");
+    const failed = h2.bus ? undefined : undefined;
+    void failed;
+    expect(h2.jobs.pendingNotifications(parent.id).map((item) => item.id)).toContain("agent_job");
+    await h2.stop();
+  });
+
   test("unknown schema version aborts startup", async () => {
     const dir = await tempDir();
     const db = join(dir, "harness.sqlite");

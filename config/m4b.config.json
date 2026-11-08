@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "modules": [
+    {
+      "use": "../src/modules/provider-opencode-go",
+      "config": {
+        "model": "opencode-go/glm-5.3-flash"
+      }
+    },
+    {
+      "use": "../src/modules/store-sqlite",
+      "config": {
+        "ttlDays": 30,
+        "cleanupIntervalMs": 21600000
+      }
+    },
+    {
+      "use": "../src/modules/tools-read"
+    },
+    {
+      "use": "../src/modules/shell"
+    },
+    "../src/modules/tools-agent",
+    "../src/modules/ui-cli"
+  ],
+  "models": {
+    "default": "opencode-go/glm-5.3-flash"
+  },
+  "restore": "none",
+  "context": {
+    "overflowRatio": 0.8
+  },
+  "shell": {
+    "mode": "whitelist",
+    "allow": [
+      "ls",
+      "cat",
+      "git",
+      "bun",
+      "wc",
+      "head",
+      "echo",
+      "printf",
+      "sleep"
+    ]
+  },
+  "jobs": {
+    "defaultTimeoutMs": 300000,
+    "maxTimeoutMs": 900000,
+    "maxConcurrentPerSession": 8,
+    "autoWake": false,
+    "maxAutoWakeStreak": 10,
+    "maxSummaryChars": 200,
+    "maxNotificationChars": 2000,
+    "resultTtlDays": 30
+  },
+  "log": {
+    "level": "info"
+  },
+  "secrets": {
+    "OPENCODE_API_KEY": {
+      "env": "OPENCODE_API_KEY"
+    }
+  },
+  "agents": {
+    "maxDepth": 3,
+    "maxChildren": 8,
+    "maxAgents": 16,
+    "maxPromptBytes": 8192,
+    "maxConcurrentModelCalls": 4
+  }
+}

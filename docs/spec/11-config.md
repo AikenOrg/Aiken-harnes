@@ -109,7 +109,7 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 {
   "use": "./modules/store-sqlite",
   "config": {
-    "path": "~/.local/share/next-harness/harness.sqlite",
+    "path": "~/.local/share/iken-harnes/harness.sqlite",
     "ttlDays": 30,
     "cleanupIntervalMs": 21600000,
     "batchMs": 50,
@@ -118,7 +118,7 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 }
 ```
 
-- `path` 省略時はユーザーデータディレクトリの `next-harness/harness.sqlite`。
+- `path` 省略時はユーザーデータディレクトリの `iken-harnes/harness.sqlite`。
 - `ttlDays` / `cleanupIntervalMs` は結果の TTL 掃除。
 
 ## 4. `models`
@@ -234,7 +234,8 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 
 - `prompt.system` はモジュールから削除・上書きできない。長さ上限は 32 KiB (**TBD**)。
 - 秘密情報は `ctx.secrets.get(name)` で解決する。プロバイダーの `stream()` 中のみ取得できる。
-- CLI は起動時に `~/.config/next-harness/.env` (Windows は `%APPDATA%\next-harness\.env`) を読み、未設定の環境変数だけを補う。プロジェクト内の `.env` は使わない。
+- CLI は起動時に `~/.config/iken-harnes/.env` (Windows は `%APPDATA%\iken-harnes\.env`) を読み、未設定の環境変数だけを補う。プロジェクト内の `.env` は使わない。
+
 - 未設定の秘密情報を要求した場合は利用時に例外。
 
 ## 9.1 `ui-web`

@@ -17,7 +17,7 @@ function config(): HarnessConfig {
 }
 
 async function tempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "next-harness-sec-"));
+  const dir = await mkdtemp(join(tmpdir(), "iken-harnes-sec-"));
   tempDirs.push(dir);
   return dir;
 }
@@ -127,17 +127,17 @@ describe("security boundaries", () => {
   test("user env loader reads a file without overriding existing env", async () => {
     const dir = await tempDir();
     const file = join(dir, ".env");
-    await writeFile(file, "NEXT_HARNESS_TEST_KEY=from-file\n", "utf8");
-    delete process.env.NEXT_HARNESS_TEST_KEY;
+    await writeFile(file, "IKEN_HARNES_TEST_KEY=from-file\n", "utf8");
+    delete process.env.IKEN_HARNES_TEST_KEY;
     const loaded = await loadUserEnv(file);
     expect(loaded.loaded).toBe(true);
-    expect(loaded.keys).toContain("NEXT_HARNESS_TEST_KEY");
-    expect((process.env as Record<string, string | undefined>).NEXT_HARNESS_TEST_KEY).toBe("from-file");
+    expect(loaded.keys).toContain("IKEN_HARNES_TEST_KEY");
+    expect((process.env as Record<string, string | undefined>).IKEN_HARNES_TEST_KEY).toBe("from-file");
 
-    process.env.NEXT_HARNESS_TEST_KEY = "from-process";
+    process.env.IKEN_HARNES_TEST_KEY = "from-process";
     await loadUserEnv(file);
-    expect((process.env as Record<string, string | undefined>).NEXT_HARNESS_TEST_KEY).toBe("from-process");
-    delete process.env.NEXT_HARNESS_TEST_KEY;
+    expect((process.env as Record<string, string | undefined>).IKEN_HARNES_TEST_KEY).toBe("from-process");
+    delete process.env.IKEN_HARNES_TEST_KEY;
     expect(parseEnv("export A=1\nB='two'\n# C=3\n")).toEqual({ A: "1", B: "two" });
   });
 });

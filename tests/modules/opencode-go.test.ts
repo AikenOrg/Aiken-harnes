@@ -162,7 +162,7 @@ describe("OpenCode Go provider", () => {
     ]);
     expect(headers.authorization).toBe("Bearer secret-key");
     expect(headers["x-opencode-session"]).toBe("ses_test_1");
-    expect(headers["user-agent"]).toBe("next-harness/0.1.0");
+    expect(headers["user-agent"]).toBe("iken-harnes/0.1.0");
     const serialized = JSON.stringify(logs);
     expect(serialized).toContain("opencode-go request");
     expect(serialized).not.toContain("secret-key");

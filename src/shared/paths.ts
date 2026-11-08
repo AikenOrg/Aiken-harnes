@@ -1,6 +1,8 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+export const APP_DIR_NAME = "iken-harnes";
+
 /** OS のユーザー設定ディレクトリ。approvals.json / .env を置く。 */
 export function userConfigDir(): string {
   if (process.env.XDG_CONFIG_HOME) return process.env.XDG_CONFIG_HOME;
@@ -17,13 +19,13 @@ export function userDataDir(): string {
 }
 
 export function userEnvFile(): string {
-  return process.env.HARNESS_ENV_FILE ?? join(userConfigDir(), "next-harness", ".env");
+  return process.env.HARNESS_ENV_FILE ?? join(userConfigDir(), APP_DIR_NAME, ".env");
 }
 
 export function defaultDbPath(): string {
-  return join(userDataDir(), "next-harness", "harness.sqlite");
+  return join(userDataDir(), APP_DIR_NAME, "harness.sqlite");
 }
 
 export function approvalsFile(): string {
-  return join(userConfigDir(), "next-harness", "approvals.json");
+  return join(userConfigDir(), APP_DIR_NAME, "approvals.json");
 }

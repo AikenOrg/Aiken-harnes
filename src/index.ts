@@ -25,7 +25,7 @@ async function main(): Promise<void> {
   await loadUserEnv(envFile);
   const configPath = argValue(args, "--config") ?? process.env.HARNESS_CONFIG;
   if (!configPath) {
-    console.log(`next-harness ${CORE_VERSION}`);
+    console.log(`iken-harnes ${CORE_VERSION}`);
     console.log("usage: bun run src/index.ts --config <config.json> [--approve-all] [--events] [--show-reasoning] [--env-file <path>] [--approvals <path>]");
     return;
   }

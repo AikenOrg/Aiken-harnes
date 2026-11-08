@@ -193,7 +193,7 @@ const shell = h(
   h(
     "header",
     { class: "topbar" },
-    h("div", { class: "brand" }, h("span", { class: "brand-mark", text: "NH" }), h("span", { text: "next-harness" })),
+    h("div", { class: "brand" }, h("span", { class: "brand-mark", text: "IH" }), h("span", { text: "iken-harnes" })),
     h("div", { class: "topbar-meta" }, connectionChip),
   ),
   h(

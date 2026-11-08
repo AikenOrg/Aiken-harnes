@@ -6,6 +6,7 @@ import type { EventEnvelope } from "./protocol/events.ts";
 import { CORE_VERSION } from "./protocol/version.ts";
 import { Harness } from "./core/harness.ts";
 import { Logger } from "./core/log.ts";
+import { loadUserEnv } from "./core/user-env.ts";
 import { loadModuleDefinition } from "./core/module-loader.ts";
 import type { ModuleDefinition } from "./core/module-host.ts";
 
@@ -19,10 +20,12 @@ function argValue(args: string[], name: string): string | undefined {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
+  const envFile = argValue(args, "--env-file") ?? process.env.HARNESS_ENV_FILE;
+  await loadUserEnv(envFile);
   const configPath = argValue(args, "--config") ?? process.env.HARNESS_CONFIG;
   if (!configPath) {
     console.log(`next-harness ${CORE_VERSION}`);
-    console.log("usage: bun run src/index.ts --config <config.json> [--approve-all] [--events]");
+    console.log("usage: bun run src/index.ts --config <config.json> [--approve-all] [--events] [--env-file <path>]");
     return;
   }
 

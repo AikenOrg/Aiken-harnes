@@ -275,3 +275,4 @@ type NotificationBlock = {
 - 終了時は `ctx.jobs.done` に `{ exitCode, signal, stdout, stderr, truncated }` を JSON で渡す。異常終了も job は `done` とし、AI が exitCode / stderr を読めるようにする。
 - spawn 自体の失敗は `ctx.jobs.fail` (`spawn_failed`)。
 - 出力は 1 MiB で切り詰める。
+- 子プロセスへ渡す環境変数は許可リスト (`PATH` / `HOME` / `TMPDIR` / Windows の `SystemRoot` など) のみ。`OPENCODE_API_KEY` などの秘密情報は渡さない。`envAllow` で追加できる。

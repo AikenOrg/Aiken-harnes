@@ -20,7 +20,7 @@ ANTHROPIC_API_KEY=... bun run src/index.ts \
   --config config/anthropic.config.json --approve-all
 
 # OpenCode Go
-# .env に OPENCODE_API_KEY を書けば Bun が自動で読み込む
+# ~/.config/next-harness/.env に OPENCODE_API_KEY を置く (Windows は %APPDATA%\next-harness\.env)
 bun run src/index.ts --config config/opencode-go.config.json --approve-all
 ```
 

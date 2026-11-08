@@ -82,10 +82,13 @@ export type HookApi = {
 };
 
 export type FsApi = {
+  /** モジュールの作業ディレクトリ。相対パスの基準。 */
+  readonly baseDir: string;
   read(path: string): Promise<Uint8Array>;
   write(path: string, data: Uint8Array): Promise<void>;
   list(path: string): Promise<string[]>;
   stat(path: string): Promise<{ size: number; mtimeMs: number }>;
+  realpath(path: string): Promise<string>;
 };
 
 export type NetApi = {

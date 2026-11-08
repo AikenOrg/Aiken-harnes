@@ -1,5 +1,5 @@
-import { readFile, readdir, stat, writeFile } from "node:fs/promises";
-import { resolve, relative, isAbsolute } from "node:path";
+import { readFile, readdir, realpath, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import type { Capability, ModuleManifest, PermissionRequest } from "../protocol/manifest.ts";
 import type { ModelInfo } from "../protocol/provider.ts";
 import type {
@@ -104,6 +104,62 @@ function assertInside(baseDir: string, allowed: readonly string[], path: string)
   });
   if (!inside) throw new Error(`path outside declared roots: ${path}`);
   return target;
+}
+
+function isInsideRoots(target: string, roots: readonly string[]): boolean {
+  return roots.some((root) => {
+    const rel = relative(root, target);
+    return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+  });
+}
+
+async function realRoots(baseDir: string, allowed: readonly string[]): Promise<string[]> {
+  const resolvedBase = resolve(baseDir);
+  return Promise.all(
+    allowed.map(async (entry) => {
+      const root = isAbsolute(entry) ? resolve(entry) : resolve(resolvedBase, entry);
+      try {
+        return await realpath(root);
+      } catch {
+        return root;
+      }
+    }),
+  );
+}
+
+async function assertRealInside(
+  baseDir: string,
+  allowed: readonly string[],
+  path: string,
+): Promise<string> {
+  const target = assertInside(baseDir, allowed, path);
+  const roots = await realRoots(baseDir, allowed);
+  let real: string;
+  try {
+    real = await realpath(target);
+  } catch {
+    real = target;
+  }
+  if (!isInsideRoots(real, roots)) throw new Error(`path escapes declared roots: ${path}`);
+  return real;
+}
+
+async function assertWriteInside(
+  baseDir: string,
+  allowed: readonly string[],
+  path: string,
+): Promise<string> {
+  const target = assertInside(baseDir, allowed, path);
+  const roots = await realRoots(baseDir, allowed);
+  const parent = dirname(target);
+  let realParent: string;
+  try {
+    realParent = await realpath(parent);
+  } catch {
+    realParent = parent;
+  }
+  if (!isInsideRoots(realParent, roots)) throw new Error(`path escapes declared roots: ${path}`);
+  return resolve(realParent, basename(target));
 }
 
 function declaredSubscription(manifest: ModuleManifest, requested: string): boolean {
@@ -297,26 +353,32 @@ export function createModuleContext(
   };
 
   const fs: FsApi = {
+    baseDir: options.baseDir,
     read: async (path) => {
       requireCap("fs.read");
       const allowed = permissionOf(manifest, "fs.read")?.paths ?? [];
-      return new Uint8Array(await readFile(assertInside(options.baseDir, allowed, path)));
+      return new Uint8Array(await readFile(await assertRealInside(options.baseDir, allowed, path)));
     },
     write: async (path, data) => {
       requireCap("fs.write");
       const allowed = permissionOf(manifest, "fs.write")?.paths ?? [];
-      await writeFile(assertInside(options.baseDir, allowed, path), data);
+      await writeFile(await assertWriteInside(options.baseDir, allowed, path), data);
     },
     list: async (path) => {
       requireCap("fs.read");
       const allowed = permissionOf(manifest, "fs.read")?.paths ?? [];
-      return readdir(assertInside(options.baseDir, allowed, path));
+      return readdir(await assertRealInside(options.baseDir, allowed, path));
     },
     stat: async (path) => {
       requireCap("fs.read");
       const allowed = permissionOf(manifest, "fs.read")?.paths ?? [];
-      const info = await stat(assertInside(options.baseDir, allowed, path));
+      const info = await stat(await assertRealInside(options.baseDir, allowed, path));
       return { size: info.size, mtimeMs: info.mtimeMs };
+    },
+    realpath: async (path) => {
+      requireCap("fs.read");
+      const allowed = permissionOf(manifest, "fs.read")?.paths ?? [];
+      return assertRealInside(options.baseDir, allowed, path);
     },
   };
 

@@ -29,7 +29,8 @@
       "wc",
       "head",
       "echo",
-      "printf"
+      "printf",
+      "sleep"
     ]
   },
   "jobs": {

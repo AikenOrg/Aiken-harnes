@@ -179,6 +179,7 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 
 - `prompt.system` はモジュールから削除・上書きできない。長さ上限は 32 KiB (**TBD**)。
 - 秘密情報は `ctx.secrets.get(name)` で解決する。プロバイダーの `stream()` 中のみ取得できる。
+- CLI は起動時に `~/.config/next-harness/.env` (Windows は `%APPDATA%\next-harness\.env`) を読み、未設定の環境変数だけを補う。プロジェクト内の `.env` は使わない。
 - 未設定の秘密情報を要求した場合は利用時に例外。
 
 ## 10. 承認記録
@@ -193,6 +194,7 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 | `HARNESS_CONFIG` | config.json のパス |
 | `HARNESS_LOG_LEVEL` | 診断ログのレベル上書き |
 | `HARNESS_DATA_DIR` | dataDir の上書き |
+| `HARNESS_ENV_FILE` | 秘密情報の .env パス上書き |
 | `XDG_CONFIG_HOME` | Linux の承認記録の基準ディレクトリ |
 | `APPDATA` | Windows の承認記録の基準ディレクトリ |
 

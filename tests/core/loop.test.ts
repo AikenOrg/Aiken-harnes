@@ -241,3 +241,34 @@ describe("turn cancellation", () => {
     await harness.stop();
   });
 });
+
+describe("malformed tool arguments", () => {
+  test("returns an error tool_result and continues", async () => {
+    const dir = await tempDir();
+    await writeFile(join(dir, "README.md"), "hello", "utf8");
+    const readModule = await loadModuleDefinition("./src/modules/tools-read", process.cwd());
+    const provider = new ScriptedProvider([
+      { toolCalls: [{ id: "bad", name: "read", args: {} }], stop: "tool_use" },
+      { text: "recovered", stop: "end" },
+    ]);
+    const harness = new Harness({
+      config: config("mock/script"),
+      modules: [providerModule(provider), readModule],
+      autoApprove: true,
+      baseDir: dir,
+      ids: createSequentialIds("badargs"),
+    });
+    const events = collect(harness);
+    await harness.start();
+    const session = harness.createSession();
+    await harness.send(session.id, "read");
+    const failed = events.find((event) => event.type === "tool.failed");
+    expect((failed?.payload as { error?: { code?: string } }).error?.code).toBe("invalid_args");
+    const toolResult = harness.history
+      .read(session.id)
+      .find((message) => message.role === "tool")?.blocks[0];
+    expect(toolResult).toMatchObject({ type: "tool_result", isError: true });
+    expect(harness.history.read(session.id).at(-1)?.blocks[0]).toEqual({ type: "text", text: "recovered" });
+    await harness.stop();
+  });
+});

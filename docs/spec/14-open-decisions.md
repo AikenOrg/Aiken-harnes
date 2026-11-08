@@ -59,6 +59,9 @@
 | D53 | コンテキスト上限のしきい値 | `context.overflowRatio` は既定 0.8。判定は `lastInputTokens + maxTokens > ratio * contextWindow` | 確定 |
 | D54 | ui ロールの任意 session.delete | `session.delete` を専用権限にし、ui ロールだけ付与。対象は `closed` のみ。AI ツール・サブエージェントには付与しない。`session.deleted` を発行 | 確定 |
 | D55 | ModelRequest.sessionId | プロバイダーへセッション ID を渡す。OpenCode Go の `x-opencode-session` に使う | 確定 |
+| D56 | shell の子プロセス環境 | 許可リストの変数だけを渡す。`OPENCODE_API_KEY` などは渡さない | 確定 |
+| D57 | read の拒否リスト | 作業ディレクトリ外、`.env*`、`approvals.json`、秘密鍵、`.git`、`.ssh` を拒否。realpath 後に検査 | 確定 |
+| D58 | 秘密情報の置き場所 | `~/.config/next-harness/.env` (Windows は `%APPDATA%\next-harness\.env`)。CLI が起動時に読み、既存 env は上書きしない | 確定 |
 
 ## 決定の要点
 

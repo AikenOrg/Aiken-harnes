@@ -14,7 +14,8 @@
     "docs:check": "bun run scripts/check-docs.ts",
     "docs:gen": "bun run scripts/generate-events-doc.ts",
     "docs:gen:check": "bun run scripts/generate-events-doc.ts --check",
-    "cli": "bun run src/index.ts"
+    "cli": "bun run src/index.ts",
+    "verify:opencode-go": "bun run scripts/verify-opencode-go.ts"
   },
   "dependencies": {
     "zod": "^4.6.7"

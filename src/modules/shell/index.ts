@@ -4,9 +4,38 @@ import type { ModuleExports } from "../../protocol/ctx.ts";
 
 const MAX_OUTPUT = 1_000_000;
 
+const DEFAULT_ENV = [
+  "PATH",
+  "HOME",
+  "USER",
+  "LOGNAME",
+  "SHELL",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "TERM",
+  "TMPDIR",
+  "TEMP",
+  "TMP",
+  "PWD",
+  "SystemRoot",
+  "SystemDrive",
+  "ComSpec",
+  "PATHEXT",
+  "USERPROFILE",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "PROGRAMDATA",
+  "PROGRAMFILES",
+  "PROGRAMFILES(X86)",
+  "WINDIR",
+];
+
 const configSchema = z.object({
   mode: z.enum(["full", "whitelist"]).default("whitelist"),
   allow: z.array(z.string()).default([]),
+  /** 既定の許可リストに追加する環境変数。秘密情報は追加しない。 */
+  envAllow: z.array(z.string()).default([]),
 });
 
 type ShellConfig = z.infer<typeof configSchema>;
@@ -20,6 +49,15 @@ type RunResult = {
   truncated: boolean;
   error?: string;
 };
+
+function buildEnv(extra: readonly string[]): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const name of new Set([...DEFAULT_ENV, ...extra])) {
+    const value = process.env[name];
+    if (value !== undefined) env[name] = value;
+  }
+  return env;
+}
 
 function executableOf(command: string): string {
   const tokens = command.trim().split(/\s+/).filter(Boolean);
@@ -49,7 +87,12 @@ function killTree(child: ChildProcess): void {
   if (typeof timer === "object" && "unref" in timer) timer.unref();
 }
 
-function runShell(command: string, cwd: string | undefined, signal: AbortSignal): Promise<RunResult> {
+function runShell(
+  command: string,
+  cwd: string | undefined,
+  signal: AbortSignal,
+  config: ShellConfig,
+): Promise<RunResult> {
   return new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
@@ -81,7 +124,7 @@ function runShell(command: string, cwd: string | undefined, signal: AbortSignal)
         cwd: cwd ?? process.cwd(),
         detached: process.platform !== "win32",
         stdio: ["ignore", "pipe", "pipe"],
-        env: process.env,
+        env: buildEnv(config.envAllow),
       });
     } catch (error) {
       finish({
@@ -149,7 +192,7 @@ const module: ModuleExports = {
         const { command, cwd } = args as { command: string; cwd?: string };
         const jobId = toolCtx.jobId;
         if (!jobId) throw new Error("shell tool requires a job id");
-        void runShell(command, cwd, toolCtx.signal)
+        void runShell(command, cwd, toolCtx.signal, config)
           .then((result) => {
             if (toolCtx.signal.aborted || result.aborted) return;
             if (result.error !== undefined) {

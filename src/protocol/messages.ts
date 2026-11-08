@@ -56,6 +56,8 @@ export type Message = {
   createdAt: number;
   /** キャンセルで途切れたアシスタントメッセージ。テキストだけを保持する。 */
   interrupted?: boolean;
+  /** 出力トークン上限 (length) で切り詰められたアシスタントメッセージ。 */
+  truncated?: boolean;
 };
 
 /** 履歴へ追記するメッセージ。id と createdAt はコアが採番する。 */

@@ -175,6 +175,7 @@ type SessionApi = {
 - `create` の `autoWake` はセッション単位の上書き。省略時、最上位は config、サブエージェントは `true`。
 - `setModel` は次のターンから反映する。
 - `setReasoning` は `ui` ロールまたは `session.input` 権限で呼べる。設定は `sessions.meta_json` に保存し、復元後も維持する。次のターンから反映する。
+- `history.append` は `truncated: true` を保持する。出力トークン上限に達したターンは `turn.ended.reason = "length"` になる。
 - `list` / `models` は `session.manage`、`send` / `cancel` は `session.input` と `ui` ロールを必要とする。
 - `send` はターンの完了を待たずにキューへ積む。`cancel` は `user.cancel` を発行する。
 

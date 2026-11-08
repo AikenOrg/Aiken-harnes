@@ -4,7 +4,8 @@
     {
       "use": "../src/modules/provider-opencode-go",
       "config": {
-        "model": "opencode-go/glm-5.3-flash"
+        "model": "opencode-go/glm-5.3-flash",
+        "maxTokens": 16384
       }
     },
     {

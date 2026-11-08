@@ -137,6 +137,17 @@ type Block =
 - 実 API: GLM で UI 経由の reasoning 表示、MiniMax Anthropic で署名つき thinking のツール往復を確認。
 - ヘッドレス Chromium: ストリーミング中は reasoning が展開され、完了後は履歴の折りたたみブロックになることを確認。
 
+## 8.1 出力トークン上限 (length)
+
+reasoning は OpenAI 互換では出力トークンに含まれる。長い reasoning が `max_tokens` に達すると、上流は `finish_reason: "length"` を返し、本文が空のまま終わることがある。実 API で `max_tokens: 220` のとき、reasoning 726 文字・本文 0 文字で `length` になることを確認した。
+
+- `TurnLoop` は `length` を `completed` にせず、`turn.ended.reason = "length"` にする。
+- そのターンの assistant メッセージには `truncated: true` を付け、SQLite の `interrupted` 列に 2 として保存する。
+- ツール呼び出しが途中で切れている可能性があるため、`length` のターンではツールを実行しない。
+- サブエージェントのジョブは `failed (code: "length")` にする。
+- UI は `truncated (length)` バッジとトーストを表示する。
+- reasoning 用の設定例では `provider-opencode-go` の `maxTokens` を 16384 にしている。長い reasoning が頻発する場合は増やす。
+
 ## 9. 未確認・制限
 
 - すべてのモデルの reasoning 対応を実測したわけではない。UI は実測またはモデル一覧の能力があるものだけ表示し、それ以外は非対応扱い。

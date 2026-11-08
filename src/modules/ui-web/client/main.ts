@@ -507,6 +507,9 @@ function renderMessages(): void {
     if (message.interrupted === true) {
       meta.append(h("span", { class: "interrupted", text: "interrupted" }));
     }
+    if (message.truncated === true) {
+      meta.append(h("span", { class: "truncated", text: "truncated (length)" }));
+    }
     article.append(meta);
     for (const block of message.blocks) article.append(blockNode(block));
     messagesEl.append(article);
@@ -1063,6 +1066,9 @@ function handleEvent(event: EventEnvelope): void {
     }
     case "turn.ended": {
       setSessionState(sessionId, "idle");
+      if (payload.reason === "length") {
+        toast("出力がトークン上限に達しました（truncated）", true);
+      }
       renderSessions();
       renderHeader();
       renderComposer();

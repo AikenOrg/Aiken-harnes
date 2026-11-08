@@ -32,6 +32,7 @@ export class HistoryManager {
       createdAt: this.#now(),
     };
     if (message.interrupted !== undefined) stored.interrupted = message.interrupted;
+    if (message.truncated !== undefined) stored.truncated = message.truncated;
     this.#messagesFor(sessionId).push(stored);
     this.#bus.emit("message.appended", { v: 1, messageId: stored.id }, { source: "core", sessionId });
     return stored;
@@ -48,6 +49,7 @@ export class HistoryManager {
         createdAt: this.#now(),
       };
       if (message.interrupted !== undefined) item.interrupted = message.interrupted;
+      if (message.truncated !== undefined) item.truncated = message.truncated;
       return item;
     });
     list.push(...stored);

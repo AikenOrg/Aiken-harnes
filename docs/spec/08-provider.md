@@ -66,8 +66,10 @@ type Message = {
   role: Role;
   blocks: Block[];
   createdAt: number;
-  /** キャンセルで途切れたアシスタントメッセージ。テキストだけを保持する。 */
+  /** キャンセルで途切れたアシスタントメッセージ。 */
   interrupted?: boolean;
+  /** 出力トークン上限 (stop.reason = "length") で切り詰められた。 */
+  truncated?: boolean;
 };
 
 type Block =
@@ -96,7 +98,7 @@ type Block =
 |---|---|
 | `end` | ターン終了 |
 | `tool_use` | tool_call を実行してループ継続 |
-| `length` | ターン終了。必要なら継続を促す (TBD) |
+| `length` | `turn.ended (reason: "length")`。履歴の assistant に `truncated: true` を付け、ツールは実行しない |
 | `error` | `model.failed`。`critical` なら停止 |
 
 - ストリームが `stop` を返さずに終了した場合は `stop.reason = "error"` とみなす。

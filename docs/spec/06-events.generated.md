@@ -30,9 +30,9 @@
 |  |  | `sessionId` | string | ✓ |
 | `turn.started` | ターン開始。 | `v` | 1 | ✓ |
 |  |  | `turnId` | string | ✓ |
-| `turn.ended` | ターン終了。 | `v` | 1 | ✓ |
+| `turn.ended` | ターン終了。length は出力トークン上限による切り詰め（履歴は truncated）。 | `v` | 1 | ✓ |
 |  |  | `turnId` | string | ✓ |
-|  |  | `reason` | "completed" \| "cancelled" \| "error" \| "context_overflow" | ✓ |
+|  |  | `reason` | "completed" \| "cancelled" \| "error" \| "context_overflow" \| "length" | ✓ |
 | `model.requested` | モデル呼び出しの直前。 | `v` | 1 | ✓ |
 |  |  | `turnId` | string | ✓ |
 |  |  | `model` | string | ✓ |

@@ -194,6 +194,13 @@ p { margin: 0; }
 .message.streaming { border: 1px dashed var(--md-sys-color-outline); }
 .message-meta { display: flex; align-items: center; gap: var(--ui-space-2); margin-bottom: 6px; }
 .message-role { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--md-sys-color-on-surface-variant); }
+.truncated {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+  font-size: 10px;
+}
 .interrupted {
   padding: 1px 6px;
   border-radius: 999px;

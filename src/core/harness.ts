@@ -715,6 +715,11 @@ export class Harness {
       this.jobs.done(jobId, "core", { summary: result.finalText, result: result.finalText });
     } else if (result.reason === "cancelled") {
       this.jobs.cancel(jobId, "ai", "agent turn cancelled");
+    } else if (result.reason === "length") {
+      this.jobs.fail(jobId, "core", {
+        code: "length",
+        message: "agent output exceeded the model output limit",
+      });
     } else {
       this.jobs.fail(jobId, "core", {
         code: result.reason === "context_overflow" ? "context_overflow" : "agent_error",

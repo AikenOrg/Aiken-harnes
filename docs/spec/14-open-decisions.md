@@ -95,6 +95,7 @@
 | D89 | Anthropic thinking | 順序を保持し、署名なしは返送しない。redacted は opaque で返送 | 確定 |
 | D90 | reasoning 非対応 | エラーにせず無視し、`reasoning_ignored` とセッション診断に残す | 確定 |
 | D91 | reasoning の UI | モデルの実測能力があるものだけ強度選択を出す。MiniMax OpenAI 経路は非対応 | 確定 |
+| D92 | 出力トークン上限 | `length` は completed にせず `turn.ended.reason = "length"`。assistant は `truncated`、ジョブは failed (code: length) | 確定 |
 
 ## 決定の要点
 

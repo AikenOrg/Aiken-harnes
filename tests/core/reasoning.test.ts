@@ -112,6 +112,94 @@ describe("reasoning", () => {
     await harness.stop();
   });
 
+  test("marks a length-truncated turn instead of completed", async () => {
+    class LengthProvider {
+      models(): ModelInfo[] {
+        return [
+          {
+            id: "mock/reason",
+            provider: "mock",
+            contextWindow: 100_000,
+            maxOutput: 1_000,
+            supportsTools: true,
+            reasoning: { supported: true, efforts: ["high"] },
+          },
+        ];
+      }
+      async *stream(_request: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent> {
+        if (signal.aborted) return;
+        yield { type: "reasoning", delta: "long thought" };
+        yield { type: "text", delta: "partial answer" };
+        yield { type: "stop", reason: "length" };
+      }
+    }
+    const harness = new Harness({
+      config: { version: 1, modules: [], models: { default: "mock/reason" } },
+      modules: [providerModule(new LengthProvider() as never, "provider-length")],
+      autoApprove: true,
+      ids: createSequentialIds("reasonlength"),
+    });
+    const events: EventEnvelope[] = [];
+    harness.on("*", (event) => events.push(event));
+    await harness.start();
+    const session = harness.createSession("mock/reason");
+    await harness.send(session.id, "long");
+    const ended = events.find((event) => event.type === "turn.ended" && event.sessionId === session.id);
+    expect((ended?.payload as { reason: string }).reason).toBe("length");
+    const assistant = harness.history
+      .read(session.id)
+      .filter((message) => message.role === "assistant")
+      .at(-1);
+    expect(assistant?.truncated).toBe(true);
+    expect(assistant?.interrupted).toBeUndefined();
+    expect(assistant?.blocks).toEqual([
+      { type: "reasoning", text: "long thought" },
+      { type: "text", text: "partial answer" },
+    ]);
+    expect(harness.sessions.get(session.id).state).toBe("idle");
+    await harness.stop();
+  });
+
+  test("an agent job is failed with code length when the child is truncated", async () => {
+    class LengthProvider {
+      models(): ModelInfo[] {
+        return [
+          {
+            id: "mock/reason",
+            provider: "mock",
+            contextWindow: 100_000,
+            maxOutput: 1_000,
+            supportsTools: true,
+          },
+        ];
+      }
+      async *stream(_request: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent> {
+        if (signal.aborted) return;
+        yield { type: "reasoning", delta: "long thought" };
+        yield { type: "stop", reason: "length" };
+      }
+    }
+    const harness = new Harness({
+      config: { version: 1, modules: [], models: { default: "mock/reason" } },
+      modules: [providerModule(new LengthProvider() as never, "provider-length")],
+      autoApprove: true,
+      ids: createSequentialIds("agentlength"),
+    });
+    const events: EventEnvelope[] = [];
+    harness.on("*", (event) => events.push(event));
+    await harness.start();
+    const parent = harness.createSession("mock/reason");
+    const spawned = await harness.spawnAgent({ parentSessionId: parent.id, task: "long" });
+    await waitFor(() => harness.jobs.get(spawned.jobId)?.status === "failed");
+    const failed = events.find(
+      (event) =>
+        event.type === "job.failed" &&
+        (event.payload as { jobId?: string }).jobId === spawned.jobId,
+    );
+    expect((failed?.payload as { error: { code: string } }).error.code).toBe("length");
+    await harness.stop();
+  });
+
   test("records a reasoning_ignored diagnostic on the session", async () => {
     class IgnoringProvider {
       models(): ModelInfo[] {

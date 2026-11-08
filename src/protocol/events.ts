@@ -86,7 +86,7 @@ export const eventSchemas = {
   "turn.ended": z.object({
     v,
     turnId: z.string(),
-    reason: z.enum(["completed", "cancelled", "error", "context_overflow"]),
+    reason: z.enum(["completed", "cancelled", "error", "context_overflow", "length"]),
   }),
 
   "model.requested": z.object({
@@ -309,7 +309,7 @@ export const EVENT_DESCRIPTIONS = {
   "session.deleted": "セッションを削除した。history-store / result-store は連動して掃除する。",
   "session.restored": "保存済みセッションを復元し、idle に戻した。",
   "turn.started": "ターン開始。",
-  "turn.ended": "ターン終了。",
+  "turn.ended": "ターン終了。length は出力トークン上限による切り詰め（履歴は truncated）。",
   "model.requested": "モデル呼び出しの直前。",
   "model.delta": "ストリーミング差分。kind で本文と reasoning を区別する（v2）。既定では購読されない。",
   "model.completed": "モデルストリーム完了。",

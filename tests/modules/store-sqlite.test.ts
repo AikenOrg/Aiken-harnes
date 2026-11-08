@@ -92,6 +92,7 @@ describe("store-sqlite", () => {
         { type: "reasoning", text: "signed", opaque: { kind: "signature", value: "sig" } },
         { type: "text", text: "answer" },
       ],
+      truncated: true,
     });
     await h1.flushPersistence();
     await h1.stop();
@@ -108,6 +109,8 @@ describe("store-sqlite", () => {
       { type: "reasoning", text: "signed", opaque: { kind: "signature", value: "sig" } },
       { type: "text", text: "answer" },
     ]);
+    expect(assistant?.truncated).toBe(true);
+    expect(assistant?.interrupted).toBeUndefined();
     await h2.stop();
   });
 

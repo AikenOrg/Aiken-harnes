@@ -94,6 +94,7 @@ function rowMessage(row: MessageRow): Message {
     createdAt: row.created_at,
   };
   if (row.interrupted === 1) message.interrupted = true;
+  else if (row.interrupted === 2) message.truncated = true;
   return message;
 }
 
@@ -600,7 +601,7 @@ export class SqliteStore {
           item.message.id,
           item.message.role,
           JSON.stringify(item.message.blocks),
-          item.message.interrupted === true ? 1 : 0,
+          item.message.truncated === true ? 2 : item.message.interrupted === true ? 1 : 0,
           item.message.createdAt,
         );
       }
@@ -622,7 +623,7 @@ export class SqliteStore {
           message.id,
           message.role,
           JSON.stringify(message.blocks),
-          message.interrupted === true ? 1 : 0,
+          message.truncated === true ? 2 : message.interrupted === true ? 1 : 0,
           message.createdAt,
         );
       });

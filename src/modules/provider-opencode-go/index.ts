@@ -554,7 +554,7 @@ export class OpenCodeGoProvider implements Provider {
         }
         if (choice.finish_reason) {
           finishReason = choice.finish_reason;
-          yield* emitToolCalls();
+          if (finishReason !== "length") yield* emitToolCalls();
         }
       }
 
@@ -576,7 +576,7 @@ export class OpenCodeGoProvider implements Provider {
     }
 
     if (signal.aborted) return;
-    yield* emitToolCalls();
+    if (finishReason !== "length") yield* emitToolCalls();
     if (reasoningSeen) yield { type: "reasoning_end" };
     stop = mapStopReason(finishReason);
     yield { type: "stop", reason: stop };

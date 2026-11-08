@@ -63,7 +63,7 @@ function textMessage(role: "user" | "assistant" | "tool" | "notification", text:
 }
 
 export type TurnResult = {
-  reason: "completed" | "cancelled" | "error" | "context_overflow";
+  reason: "completed" | "cancelled" | "error" | "context_overflow" | "length";
   finalText: string;
 };
 
@@ -139,7 +139,7 @@ export class TurnLoop {
     let finalText = "";
     let result: TurnResult = { reason: "error", finalText: "" };
     const end = (
-      reason: "completed" | "cancelled" | "error" | "context_overflow",
+      reason: "completed" | "cancelled" | "error" | "context_overflow" | "length",
       text?: string,
     ): void => {
       if (ended) return;
@@ -365,13 +365,24 @@ export class TurnLoop {
           return result;
         }
 
+        const truncated = finalStop === "length";
         const blocks: Block[] = reasoningBlockList();
         if (responseText.length > 0) blocks.push({ type: "text", text: responseText });
-        for (const call of toolCalls.values()) {
-          blocks.push({ type: "tool_call", id: call.id, name: call.name, args: call.args });
+        if (!truncated) {
+          for (const call of toolCalls.values()) {
+            blocks.push({ type: "tool_call", id: call.id, name: call.name, args: call.args });
+          }
         }
         if (blocks.length > 0) {
-          this.#history.append(session.id, { role: "assistant", blocks });
+          this.#history.append(session.id, {
+            role: "assistant",
+            blocks,
+            ...(truncated ? { truncated: true } : {}),
+          });
+        }
+        if (truncated) {
+          end("length", responseText);
+          return result;
         }
 
         if (toolCalls.size === 0) {

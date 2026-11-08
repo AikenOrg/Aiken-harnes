@@ -19,7 +19,7 @@ import type { SessionManager } from "./sessions.ts";
 import type { ToolRegistry } from "./tools.ts";
 
 const CONTINUE_AFTER_OUTPUT_LIMIT =
-  "Your last response hit the output token limit (stop reason: length). Do not apologize, recap, or repeat yourself. Break the remaining work into smaller pieces.";
+  "The previous response was cut off by the output token limit (stop reason: length). Continue the remaining work in smaller pieces. Do not repeat completed content or add an apology or recap.";
 
 export type TurnLoopOptions = {
   bus: EventBus;

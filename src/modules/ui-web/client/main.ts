@@ -26,6 +26,7 @@ import {
   flattenSessionTree,
   formatClock,
   formatDuration,
+  isNearBottom,
   matchesEventFilter,
   truncateText,
   type EventFilter,
@@ -50,6 +51,7 @@ type AppState = {
   events: EventEnvelope[];
   deltas: Map<string, string>;
   reasoningDeltas: Map<string, string>;
+  reasoningScroll: Map<string, { follow: boolean; top: number }>;
   showReasoning: boolean;
   approvals: PendingApproval[];
   tab: "jobs" | "events";
@@ -74,6 +76,7 @@ const state: AppState = {
   events: [],
   deltas: new Map(),
   reasoningDeltas: new Map(),
+  reasoningScroll: new Map(),
   showReasoning: (() => {
     try {
       const stored = localStorage.getItem("ui.showReasoning");
@@ -478,6 +481,19 @@ function loadOlder(): void {
 function renderMessages(): void {
   const nearBottom =
     messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 100;
+  const sessionForScroll = selectedSession();
+  const existingReasoning = messagesEl.querySelector<HTMLElement>(
+    ".reasoning.streaming .reasoning-text",
+  );
+  if (sessionForScroll && existingReasoning) {
+    const memory = state.reasoningScroll.get(sessionForScroll.id) ?? {
+      follow: true,
+      top: 0,
+    };
+    memory.top = existingReasoning.scrollTop;
+    memory.follow = isNearBottom(existingReasoning);
+    state.reasoningScroll.set(sessionForScroll.id, memory);
+  }
   messagesEl.replaceChildren();
   const session = selectedSession();
   if (!session) {
@@ -517,11 +533,16 @@ function renderMessages(): void {
   const reasoningDelta = state.reasoningDeltas.get(session.id);
   if (state.showReasoning && reasoningDelta !== undefined && reasoningDelta.length > 0) {
     const details = h("details", { class: "block reasoning streaming", open: true });
-    details.append(
-      h("summary", { text: "reasoning (streaming)" }),
-      h("pre", { class: "reasoning-text", text: reasoningDelta }),
-    );
+    const pre = h("pre", { class: "reasoning-text", text: reasoningDelta });
+    const memory = state.reasoningScroll.get(session.id) ?? { follow: true, top: 0 };
+    pre.addEventListener("scroll", () => {
+      memory.top = pre.scrollTop;
+      memory.follow = isNearBottom(pre);
+      state.reasoningScroll.set(session.id, memory);
+    });
+    details.append(h("summary", { text: "reasoning (streaming)" }), pre);
     messagesEl.append(details);
+    pre.scrollTop = memory.follow ? pre.scrollHeight : memory.top;
   }
   const delta = state.deltas.get(session.id);
   if (delta !== undefined && delta.length > 0) {
@@ -669,6 +690,7 @@ function applySnapshot(data: SnapshotData, resetEvents: boolean): void {
   state.approvals = data.approvals;
   state.deltas.clear();
   state.reasoningDeltas.clear();
+  state.reasoningScroll.clear();
   if (resetEvents) state.events = [];
   renderAll();
   showNextApproval();
@@ -688,6 +710,7 @@ async function selectSession(sessionId: string): Promise<void> {
   state.messageCount = 0;
   state.deltas.delete(sessionId);
   state.reasoningDeltas.delete(sessionId);
+  state.reasoningScroll.delete(sessionId);
   renderAll();
   try {
     const result = await command<SelectResult>("session.select", { sessionId });
@@ -936,6 +959,7 @@ function scheduleHistory(): void {
         state.messageCount = result.count;
         state.deltas.delete(sessionId);
         state.reasoningDeltas.delete(sessionId);
+        state.reasoningScroll.delete(sessionId);
         renderMessages();
         renderHeader();
       } catch {
@@ -1057,6 +1081,7 @@ function handleEvent(event: EventEnvelope): void {
       if (sessionId !== undefined && sessionId === state.selectedId) {
         state.deltas.set(sessionId, "");
         state.reasoningDeltas.set(sessionId, "");
+        state.reasoningScroll.set(sessionId, { follow: true, top: 0 });
       }
       renderSessions();
       renderHeader();

@@ -114,6 +114,13 @@ export function compactJson(value: unknown, max = 800): string {
   return text.length > max ? `${text.slice(0, max)}\n…` : text;
 }
 
+export function isNearBottom(
+  box: { scrollTop: number; scrollHeight: number; clientHeight: number },
+  threshold = 16,
+): boolean {
+  return box.scrollHeight - box.scrollTop - box.clientHeight <= threshold;
+}
+
 export function truncateText(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max)}…` : value;
 }

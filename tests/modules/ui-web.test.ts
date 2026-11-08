@@ -7,7 +7,7 @@ import type { Job, JobResult, JobStatus } from "../../src/protocol/jobs.ts";
 import type { Message } from "../../src/protocol/messages.ts";
 import type { ModelInfo } from "../../src/protocol/provider.ts";
 import type { Session } from "../../src/protocol/session.ts";
-import { flattenSessionTree } from "../../src/modules/ui-web/client/state.ts";
+import { flattenSessionTree, isNearBottom } from "../../src/modules/ui-web/client/state.ts";
 import {
   createUiServer,
   isAllowedHost,
@@ -406,6 +406,11 @@ describe("ui-web protocol", () => {
       ["grandchild", 2],
       ["parent_old", 0],
     ]);
+  });
+
+  test("detects whether a scroll box is following the bottom", () => {
+    expect(isNearBottom({ scrollTop: 900, scrollHeight: 1_000, clientHeight: 100 })).toBe(true);
+    expect(isNearBottom({ scrollTop: 700, scrollHeight: 1_000, clientHeight: 100 })).toBe(false);
   });
 
   test("screen code does not use md-* elements directly and ships a dark palette", () => {

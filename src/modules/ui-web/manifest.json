@@ -1,0 +1,18 @@
+{
+  "name": "ui-web",
+  "version": "0.1.0",
+  "roles": ["ui"],
+  "builtin": true,
+  "critical": false,
+  "runner": "inprocess",
+  "main": "index.ts",
+  "subscribes": ["*"],
+  "permissions": [
+    { "cap": "history.read" },
+    { "cap": "session.manage" },
+    { "cap": "session.input" },
+    { "cap": "session.delete" },
+    { "cap": "job.read" },
+    { "cap": "job.cancel" }
+  ]
+}

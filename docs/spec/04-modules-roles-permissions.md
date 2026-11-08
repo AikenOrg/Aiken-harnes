@@ -108,6 +108,13 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 - result-store が無い場合、コアはメモリに結果を持つ。再起動で消える。
 - 必須扱いにするかは、そのモジュールの `critical` で選ぶ。
 
+### 2.6 ui
+
+- 人間の操作を提供するロール。複数持てるが、`requestApproval` の実装者は 1 つ（最初に登録された ui）になる。
+- 全セッションを `ctx` API 経由で読める。ジョブの参照・キャンセルも `ui` ロールに限定する。
+- `src/modules/ui-cli`（承認プロンプト）と `src/modules/ui-web`（HTTP/WS）がある。両方を同時に使わない。
+- Web UI の仕様は [15-web-ui.md](15-web-ui.md) を参照。
+
 ## 3. 権限 (capability)
 
 ### 3.1 コア API 系 (実効強制あり)
@@ -120,7 +127,10 @@ manifest はコードとは別の `manifest.json` に置く。コアはモジュ
 | `history.rewrite` | `ctx.history.rewrite` | compactor のみ |
 | `prompt.contribute` | `ctx.prompt.contribute` | 任意 (承認制) |
 | `session.manage` | `ctx.session.*` | ui, agent 系。`close` は ui ロールなら任意、それ以外は自分のセッションと子孫 |
+| `session.input` | `ctx.session.send` / `cancel` | ui ロールのみ |
 | `session.delete` | `ctx.session.delete` | ui ロールのみ。対象は `closed` のみ |
+| `job.read` | `ctx.jobs.list` / `read` | ui ロールのみ |
+| `job.cancel` | `ctx.jobs.cancel` | ui ロールのみ |
 | `agent.spawn` | `ctx.agent.spawn` | 任意 |
 | `agent.message` | `ctx.agent.send` (`message` は互換エイリアス) | 任意 |
 | `tool.register` | `ctx.tools.register` | ツール提供モジュール |

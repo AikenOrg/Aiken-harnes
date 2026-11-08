@@ -14,7 +14,7 @@
 | 5 | [spec/05-tools-jobs.md](spec/05-tools-jobs.md) | ツール、非同期ジョブ、通知、キャンセル |
 | 6 | [spec/06-events.md](spec/06-events.md) | イベントエンベロープ、ペイロード原則、配信 |
 | 6g | [spec/06-events.generated.md](spec/06-events.generated.md) | 全ペイロードの生成一覧 (events.ts が正) |
-| 7 | [spec/07-hooks.md](spec/07-hooks.md) | 3 種類のフック |
+| 7 | [spec/07-hooks.md](spec/07-hooks.md) | 4 種類のフック |
 | 8 | [spec/08-provider.md](spec/08-provider.md) | Provider インターフェイスとメッセージ型 |
 | 9 | [spec/09-ctx-api.md](spec/09-ctx-api.md) | ctx API と権限強制の範囲 |
 | 10 | [spec/10-storage.md](spec/10-storage.md) | SQLite、WAL、単一書き込みキュー |
@@ -22,10 +22,12 @@
 | 12 | [spec/12-lifecycle-errors.md](spec/12-lifecycle-errors.md) | critical、障害時の挙動、停止 |
 | 13 | [spec/13-roadmap.md](spec/13-roadmap.md) | マイルストーン、評価タスク、未決定 |
 | 14 | [spec/14-open-decisions.md](spec/14-open-decisions.md) | 決定・補完・要確認事項 |
+| 14w | [spec/15-web-ui.md](spec/15-web-ui.md) | Web UI (`ui-web`) の API・プロトコル・安全要件 |
 | 15 | [impl/m1.md](impl/m1.md) | M1 の実装状況・動かし方・未実装項目 |
 | 16 | [impl/m3.md](impl/m3.md) | SQLite 永続化と session.restore の実装 |
 | 17 | [impl/m4a.md](impl/m4a.md) | approvals.json と承認フローの実装 |
 | 18 | [impl/m4b.md](impl/m4b.md) | サブエージェントの実装 |
+| 19 | [impl/m5.md](impl/m5.md) | Web UI (`ui-web`) の実装 |
 | — | [adr/](adr/) | 環境・ツール選定の記録 |
 
 ## ドキュメントのルール

@@ -83,6 +83,7 @@ type EventEnvelope<TType extends string = string, TPayload = unknown> = {
 
 ### 4.7 エージェント / モジュール / 権限 / コア
 
+- `user.cancel`: UI / CLI の Ctrl+C によるユーザーキャンセル。`turn.ended` の `cancelled` と併せて購読する。
 - `agent.spawned` / `agent.message` / `agent.cancelled`: サブエージェントの操作。`agent.spawned` は tools、`agent.message` は jobId を持つ。
 - `module.loaded` / `module.failed` / `module.disabled`: モジュールのライフサイクル。
 - `permission.requested` / `granted` / `denied` / `violation`: 承認と強制の記録。

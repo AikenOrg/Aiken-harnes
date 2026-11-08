@@ -1,7 +1,8 @@
 import type { EventEnvelope } from "./events.ts";
-import type { JobDoneInput, JobFailInput } from "./jobs.ts";
+import type { Job, JobDoneInput, JobFailInput, JobResult, JobStatus } from "./jobs.ts";
 import type { Message, NewMessage } from "./messages.ts";
 import type { PromptSegment, PromptSegmentInput } from "./prompt.ts";
+import type { ModelInfo } from "./provider.ts";
 import type { Provider } from "./provider.ts";
 import type { Session } from "./session.ts";
 import type { ToolDefinition } from "./tools.ts";
@@ -48,6 +49,10 @@ export type PromptApi = {
 
 export type SessionApi = {
   get(sessionId: string): Session;
+  /** すべてのセッション。UI ロール向け。 */
+  list(): Promise<Session[]>;
+  /** 登録済みモデル。UI の新規セッション作成用。 */
+  models(): ModelInfo[];
   create(opts: { model: string; parentId?: string; autoWake?: boolean }): Promise<Session>;
   fork(sessionId: string, opts?: { model?: string }): Promise<Session>;
   /** 復元可能なセッションの一覧 (session-store の role API 経由)。 */
@@ -55,8 +60,13 @@ export type SessionApi = {
   /** 保存済みセッションを restoring 状態で開き、履歴の復元を開始する。 */
   restore(sessionId: string): Promise<Session>;
   close(sessionId: string): Promise<void>;
+  /** closed のセッションだけ削除できる。 */
   delete(sessionId: string): Promise<void>;
   setModel(sessionId: string, model: string): void;
+  /** ユーザー入力をキューへ積む。UI ロール向け。 */
+  send(sessionId: string, text: string): Promise<void>;
+  /** 現在のターンをユーザー操作としてキャンセルする。UI ロール向け。 */
+  cancel(sessionId: string, opts?: { reason?: string }): Promise<void>;
 };
 
 export type AgentSpawnOptions = {
@@ -124,6 +134,12 @@ export type LogApi = {
 export type JobsApi = {
   done(jobId: string, input: JobDoneInput): void;
   fail(jobId: string, input: JobFailInput): void;
+  /** セッションが起動したジョブ。UI ロール向け。 */
+  list(sessionId: string, status?: JobStatus): Promise<Job[]>;
+  /** ジョブ結果の取得。UI ロール向け。 */
+  read(jobId: string, opts?: { offset?: number; limit?: number }): Promise<JobResult>;
+  /** 実行中ジョブのキャンセル。UI ロール向け。 */
+  cancel(jobId: string, opts?: { reason?: string }): Promise<void>;
 };
 
 /** モジュールの init に渡される唯一の窓口。 */

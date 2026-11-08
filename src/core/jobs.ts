@@ -307,6 +307,16 @@ export class JobManager {
     );
   }
 
+  /** セッションが起動したジョブを、子孫を含めずに返す。UI 用。 */
+  listBySession(sessionId: string, status?: JobStatus): Job[] {
+    return [...this.#jobs.values()]
+      .filter(
+        (job) =>
+          job.ownerSessionId === sessionId && (status === undefined || job.status === status),
+      )
+      .map((job) => ({ ...job }));
+  }
+
   listJobs(callerSessionId: string, status?: JobStatus): Job[] {
     return [...this.#jobs.values()].filter((job) => {
       if (!this.#sessions.isSelfOrDescendant(callerSessionId, job.ownerSessionId)) return false;

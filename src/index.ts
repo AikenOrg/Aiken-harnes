@@ -58,6 +58,8 @@ async function main(): Promise<void> {
       await loadModuleDefinition(join(import.meta.dir, "modules/ui-cli"), import.meta.dir),
     );
   }
+  const uiOwner = definitions.find((definition) => definition.manifest.roles.includes("ui"));
+  const headless = uiOwner !== undefined && uiOwner.manifest.name !== "ui-cli";
 
   const approvalsPath = argValue(args, "--approvals");
   const harness = new Harness({
@@ -98,11 +100,43 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (headless) {
+    console.log("web UI mode: open the URL printed above. Ctrl+C to stop.");
+    await new Promise<void>((resolve) => {
+      let stopping = false;
+      const stop = (): void => {
+        if (stopping) return;
+        stopping = true;
+        resolve();
+      };
+      process.once("SIGINT", stop);
+      process.once("SIGTERM", stop);
+    });
+    await harness.stop();
+    return;
+  }
+
   const session = harness.createSession();
   console.log(`session ${session.id} model=${session.model}`);
-  console.log("type a message; Ctrl-D to exit");
+  console.log("type a message; Ctrl+C cancels the current turn (twice to exit); Ctrl-D to exit");
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
+  let lastInterrupt = 0;
+  rl.on("SIGINT", () => {
+    const now = Date.now();
+    if (now - lastInterrupt < 2_000) {
+      console.log("\nexiting");
+      rl.close();
+      return;
+    }
+    lastInterrupt = now;
+    if (session.state === "active") {
+      harness.cancel(session.id, "user", "ctrl+c");
+      console.log("\n[cancelled] press Ctrl+C again to exit");
+    } else {
+      console.log("\n[press Ctrl+C again to exit]");
+    }
+  });
   try {
     for await (const line of rl) {
       if (line.trim().length === 0) continue;

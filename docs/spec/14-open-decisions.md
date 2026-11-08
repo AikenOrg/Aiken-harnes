@@ -82,6 +82,12 @@
 | D76 | 子の復元 | 子は保存するが復元しない。親復元時の running agent ジョブは failed (interrupted) | 確定 |
 | D77 | モデル同時数 | `agents.maxConcurrentModelCalls` のセマフォで全体を制限 | 確定 |
 | D78 | autoWake の連続回数 | `jobs.maxAutoWakeStreak` を子にも適用 | 確定 |
+| D79 | Web UI の通信 | HTTP は GET/HEAD の静的配信のみ。状態変更は WebSocket の command | 確定 |
+| D80 | Web UI の安全 | `127.0.0.1` bind、`Origin` / `Host` を loopback に限定、CORS なし、トークンなし | 確定 |
+| D81 | `0.0.0.0` | 待受は許可するが Origin/Host は loopback 固定。リモート利用は M6 以降 | 確定 |
+| D82 | ui ロール API | `session.list/models/send/cancel`、`jobs.list/read/cancel` を追加。書き込み系は `ui` ロール限定 | 確定 |
+| D83 | クライアント | 素の TS + `@material/web`。`components/` ラッパー経由でのみ `<md-*>` を使う | 確定 |
+| D84 | 配色 | `seedColor` から `@material/material-color-utilities` でライト/ダークを生成 | 確定 |
 
 ## 決定の要点
 

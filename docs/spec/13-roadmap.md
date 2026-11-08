@@ -31,14 +31,14 @@
 - 実装済み: JobManager、`ctx.jobs.done/fail`、タイムアウト、通知キュー、`wait` / `cancel` / `read_result` / `list_jobs`、非同期 shell（whitelist/full、プロセス kill）。
 - 未実装: SQLite result-store。
 
-### M3: 永続化と UI (永続化は実装済み)
+### M3: 永続化と UI (実装済み)
 
 - SQLite history-store (投影) + session-store、`ctx.history.restore` と `session.restore` による復元
 - WebUI (HTTP/WS) とイベント購読
 - ストリーミング表示 (`model.delta` の明示購読)
 - 完了条件: プロセス再起動後も履歴とセッションが復元される。
 - 実装: `store-sqlite`、`session.restore`、`restore: "last"`、TTL 掃除。詳細は [../impl/m3.md](../impl/m3.md)。
-- 未実装: Web UI。
+- Web UI 実装済み: `ui-web`。詳細は [15-web-ui.md](15-web-ui.md) / [../impl/m5.md](../impl/m5.md)。
 - M4b: `ctx.agent` / `tools-agent` / `agent.route` / 同時数制限 / 子の非復元。詳細は [../impl/m4b.md](../impl/m4b.md)。
 - 実 API: 親が 2 子を並行実行し、wait/read_result で集約する動作を確認済み。
 
@@ -49,9 +49,17 @@
 - shell のホワイトリストと `tool.before` 承認 (whitelist/full は実装済み。承認 UI が未実装)
 - 完了条件: `history.rewrite` が compactor 以外で拒否される。E4〜E6 が通る。
 - 実装済み: approvals.json、ハッシュ照合、差分、警告、builtin、`--approve-all`。詳細は [../impl/m4a.md](../impl/m4a.md)。
-- 未実装: compaction、Web UI の承認画面。
+- 未実装: compaction。
 
-### M5: 堅牢化
+### M5: Web UI (実装済み 2026-11-08)
+
+- `ui-web` モジュール: HTTP/WS、snapshot / event / approval、M3 の 1 ページ UI
+- `ui` ロール向け API: セッション一覧・入力・キャンセル、ジョブ参照・キャンセル
+- CLI の Ctrl+C を現在ターンのキャンセルに変更（2 回で終了）
+- 完了条件: [15-web-ui.md](15-web-ui.md) の受け入れテスト。
+- 詳細は [../impl/m5.md](../impl/m5.md)。
+
+### M6: 堅牢化
 
 - Windows での動作確認 (パス、シェル、シグナル)
 - クラッシュ復旧、実行中ジョブの後始末

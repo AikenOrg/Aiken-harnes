@@ -1,0 +1,10 @@
+{
+  "name": "demo-tool",
+  "version": "0.1.0",
+  "roles": [],
+  "critical": false,
+  "runner": "inprocess",
+  "main": "index.ts",
+  "permissions": [{ "cap": "tool.register" }],
+  "tools": [{ "name": "demo_echo", "mode": "sync" }]
+}

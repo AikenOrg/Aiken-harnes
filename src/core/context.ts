@@ -1,5 +1,6 @@
 import { readFile, readdir, realpath, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
+import type { CancelBy } from "../protocol/common.ts";
 import type { Capability, ModuleManifest, PermissionRequest } from "../protocol/manifest.ts";
 import type { ModelInfo } from "../protocol/provider.ts";
 import type {
@@ -90,6 +91,10 @@ export type ContextFactoryOptions = {
     restore(sessionId: string): Promise<Session>;
   };
   agent?: AgentApi;
+  sendMessage?: (sessionId: string, text: string) => Promise<void>;
+  cancelSession?: (sessionId: string, by: CancelBy, reason?: string) => boolean;
+  closeSession?: (sessionId: string, reason?: string) => void;
+  deleteSession?: (sessionId: string) => Promise<void>;
   callModule?: (caller: string, target: string, method: string, args?: unknown) => Promise<unknown>;
 };
 
@@ -241,6 +246,26 @@ export function createModuleContext(
   const jobs: JobsApi = {
     done: (jobId, input) => options.jobs.done(jobId, moduleName, input),
     fail: (jobId, input) => options.jobs.fail(jobId, moduleName, input),
+    list: (sessionId, status) => {
+      requireCap("job.read");
+      requireRole("ui");
+      return Promise.resolve(options.jobs.listBySession(sessionId, status));
+    },
+    read: (jobId, readOptions) => {
+      requireCap("job.read");
+      requireRole("ui");
+      const job = options.jobs.get(jobId);
+      if (!job) return Promise.reject(new Error(`job not found: ${jobId}`));
+      return options.jobs.readResult(jobId, job.ownerSessionId, readOptions?.offset, readOptions?.limit);
+    },
+    cancel: (jobId, cancelOptions) => {
+      requireCap("job.cancel");
+      requireRole("ui");
+      const job = options.jobs.get(jobId);
+      if (!job) return Promise.reject(new Error(`job not found: ${jobId}`));
+      options.jobs.cancel(jobId, "user", cancelOptions?.reason ?? "cancelled by user");
+      return Promise.resolve();
+    },
   };
 
   const history: HistoryApi = {
@@ -295,6 +320,14 @@ export function createModuleContext(
 
   const sessions: SessionApi = {
     get: (sessionId) => options.sessions.get(sessionId),
+    list: () => {
+      requireCap("session.manage");
+      return Promise.resolve(options.sessions.list().map((session) => ({ ...session })));
+    },
+    models: () => {
+      requireCap("session.manage");
+      return options.providers.models();
+    },
     create: (createOptions) => {
       requireCap("session.manage");
       return Promise.resolve(options.sessions.create(createOptions));
@@ -315,12 +348,21 @@ export function createModuleContext(
     },
     close: (sessionId) => {
       requireCap("session.manage");
-      const closed = options.sessions.close(sessionId);
-      for (const session of closed) options.jobs.cancelBySession(session.id, "system", "session closed");
+      if (options.closeSession) {
+        options.closeSession(sessionId, "closed by ui");
+      } else {
+        const closed = options.sessions.close(sessionId);
+        for (const session of closed) options.jobs.cancelBySession(session.id, "system", "session closed");
+      }
       return Promise.resolve();
     },
     delete: (sessionId) => {
       requireCap("session.delete");
+      requireRole("ui");
+      if (options.sessions.get(sessionId).state !== "closed") {
+        return Promise.reject(new Error(`only closed sessions can be deleted: ${sessionId}`));
+      }
+      if (options.deleteSession) return options.deleteSession(sessionId);
       options.sessions.delete(sessionId);
       options.history.deleteSession(sessionId);
       return options.jobs.deleteSession(sessionId);
@@ -328,6 +370,19 @@ export function createModuleContext(
     setModel: (sessionId, model) => {
       requireCap("session.manage");
       options.sessions.setModel(sessionId, model);
+    },
+    send: (sessionId, text) => {
+      requireCap("session.input");
+      requireRole("ui");
+      if (!options.sendMessage) return Promise.reject(new Error("session input is not available"));
+      return options.sendMessage(sessionId, text);
+    },
+    cancel: (sessionId, cancelOptions) => {
+      requireCap("session.input");
+      requireRole("ui");
+      if (!options.cancelSession) return Promise.reject(new Error("session cancel is not available"));
+      options.cancelSession(sessionId, "user", cancelOptions?.reason);
+      return Promise.resolve();
     },
   };
 

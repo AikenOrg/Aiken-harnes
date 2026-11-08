@@ -320,6 +320,12 @@ export class ModuleHost {
       if (caps.has("session.delete") && !roles.has("ui")) {
         throw new Error(`${name}: session.delete requires ui role`);
       }
+      if (
+        (caps.has("session.input") || caps.has("job.read") || caps.has("job.cancel")) &&
+        !roles.has("ui")
+      ) {
+        throw new Error(`${name}: session.input / job.* require ui role`);
+      }
     }
   }
 

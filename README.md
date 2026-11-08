@@ -19,9 +19,12 @@ printf 'hello\n' | bun run src/index.ts --config config/dev.config.json --approv
 ANTHROPIC_API_KEY=... bun run src/index.ts \
   --config config/anthropic.config.json --approve-all
 
-# OpenCode Go
-# ~/.config/next-harness/.env に OPENCODE_API_KEY を置く (Windows は %APPDATA%\next-harness\.env)
-bun run src/index.ts --config config/opencode-go.config.json --approve-all
+# Web UI (OpenCode Go)。ブラウザで http://127.0.0.1:8787 を開く
+# ~/.config/next-harness/.env に OPENCODE_API_KEY を置く
+bun run src/index.ts --config config/m5.config.json --approve-all
+
+# Web UI の承認モーダル確認 (mock provider)
+bun run src/index.ts --config config/m5-approval.config.json
 
 # SQLite 永続化 + session.restore
 bun run src/index.ts --config config/m3.config.json --approve-all
@@ -43,4 +46,4 @@ bun run src/index.ts --config config/m3.config.json --approve-all
 
 ## ステータス
 
-2026-11-08: M1 のコア、非同期 shell、Anthropic / OpenCode Go、SQLite 永続化、session.restore、承認フロー、サブエージェントを実装。compaction・Web UI は未実装。
+2026-11-08: M1 のコア、非同期 shell、Anthropic / OpenCode Go、SQLite 永続化、session.restore、承認フロー、サブエージェント、Web UI (`ui-web`) を実装。compaction は未実装。

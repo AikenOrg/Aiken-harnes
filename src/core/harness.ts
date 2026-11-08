@@ -212,6 +212,10 @@ export class Harness {
         this.bus,
         logger,
       ),
+      sendMessage: (sessionId, text) => this.send(sessionId, text),
+      cancelSession: (sessionId, by, reason) => this.cancel(sessionId, by, reason),
+      closeSession: (sessionId, reason) => this.closeSession(sessionId, reason),
+      deleteSession: (sessionId) => this.deleteSession(sessionId),
       agent: {
         spawn: (spawnOptions) => this.spawnAgent(spawnOptions),
         send: (from, to, text) => this.sendAgent(from, to, text),
@@ -395,6 +399,8 @@ export class Harness {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (session.state !== "closed") throw new Error(`only closed sessions can be deleted: ${sessionId}`);
     this.#clearQueue(sessionId, "session deleted");
     this.sessions.delete(sessionId);
     this.history.deleteSession(sessionId);
@@ -430,6 +436,13 @@ export class Harness {
   }
 
   cancel(sessionId: string, by: "ai" | "user" | "timeout" | "system" = "user", reason?: string): boolean {
+    if (by === "user") {
+      this.bus.emit(
+        "user.cancel",
+        { v: 1, ...(reason !== undefined ? { reason } : {}) },
+        { source: "core", sessionId },
+      );
+    }
     return this.#turnLoop.cancel(sessionId, by, reason);
   }
 

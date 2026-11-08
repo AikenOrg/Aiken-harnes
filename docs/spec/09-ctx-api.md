@@ -111,6 +111,10 @@ type ProviderApi = {
 type JobsApi = {
   done(jobId: string, input: { summary: string; result: string | Uint8Array }): void;
   fail(jobId: string, input: { code: string; message: string }): void;
+  /** ui ロールのみ。 */
+  list(sessionId: string, status?: JobStatus): Promise<Job[]>;
+  read(jobId: string, opts?: { offset?: number; limit?: number }): Promise<JobResult>;
+  cancel(jobId: string, opts?: { reason?: string }): Promise<void>;
 };
 ```
 
@@ -120,6 +124,7 @@ type JobsApi = {
 - コアは結果を result-store に保存し、状態を更新し、イベントを発行し、通知をキューに積む。
 - 同時ジョブ上限を超えた新規ジョブは、`too_many_jobs` と実行中ジョブ ID を `tool_result` として返す。
 - ジョブ ID は `ToolContext.jobId` でハンドラに渡される。ハンドラは `ctx.jobs` と `ctx` の両方にアクセスできる。
+- `list` / `read` / `cancel` は `job.read` / `job.cancel` と `ui` ロールを必要とする。UI は全セッションのジョブを扱える。
 
 ### 2.6 `ctx.prompt`
 
@@ -140,6 +145,10 @@ type PromptApi = {
 ```ts
 type SessionApi = {
   get(sessionId: string): Session;
+  /** ui ロール向け。全セッション。 */
+  list(): Promise<Session[]>;
+  /** ui ロール向け。新規作成に使えるモデル。 */
+  models(): ModelInfo[];
   create(opts: { model: string; parentId?: string; autoWake?: boolean }): Promise<Session>;
   fork(sessionId: string, opts?: { model?: string }): Promise<Session>;
   listRestorable(): Promise<Session[]>;
@@ -149,6 +158,10 @@ type SessionApi = {
   /** closed のセッションだけを削除する。子孫が開いている間は拒否。 */
   delete(sessionId: string): Promise<void>;
   setModel(sessionId: string, model: string): void;
+  /** ui ロール向け。ユーザー入力をキューへ積む。 */
+  send(sessionId: string, text: string): Promise<void>;
+  /** ui ロール向け。現在のターンをユーザー操作としてキャンセルする。 */
+  cancel(sessionId: string, opts?: { reason?: string }): Promise<void>;
 };
 ```
 
@@ -161,6 +174,8 @@ type SessionApi = {
 - `restore` はターンループを再開しない。復元前に動いていたジョブは `failed (code: "interrupted")`、未通知の完了通知は再キューに積む。
 - `create` の `autoWake` はセッション単位の上書き。省略時、最上位は config、サブエージェントは `true`。
 - `setModel` は次のターンから反映する。
+- `list` / `models` は `session.manage`、`send` / `cancel` は `session.input` と `ui` ロールを必要とする。
+- `send` はターンの完了を待たずにキューへ積む。`cancel` は `user.cancel` を発行する。
 
 ### 2.8 `ctx.agent`
 

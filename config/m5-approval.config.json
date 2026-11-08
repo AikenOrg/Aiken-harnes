@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "modules": [
+    {
+      "use": "../src/modules/provider-mock"
+    },
+    {
+      "use": "../src/modules/ui-web",
+      "config": {
+        "host": "127.0.0.1",
+        "port": 8788,
+        "seedColor": "#6750A4"
+      }
+    },
+    {
+      "use": "../examples/modules/demo-tool"
+    }
+  ],
+  "models": {
+    "default": "mock/echo"
+  },
+  "restore": "none",
+  "log": {
+    "level": "info"
+  }
+}

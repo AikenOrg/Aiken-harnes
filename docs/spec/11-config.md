@@ -214,6 +214,20 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 - CLI は起動時に `~/.config/next-harness/.env` (Windows は `%APPDATA%\next-harness\.env`) を読み、未設定の環境変数だけを補う。プロジェクト内の `.env` は使わない。
 - 未設定の秘密情報を要求した場合は利用時に例外。
 
+## 9.1 `ui-web`
+
+`ui-web` モジュールの config。
+
+| キー | 既定 | 内容 |
+|---|---|---|
+| `host` | `127.0.0.1` | bind 先。`0.0.0.0` は警告付きで許可するが、Origin/Host は loopback 固定 |
+| `port` | `8787` | HTTP/WS のポート。`0` は OS 任せ（テスト用） |
+| `seedColor` | `#6750A4` | M3 のシード色（`#RRGGBB`） |
+| `approvalTimeoutMs` | `300000` | 承認待ちのタイムアウト。超過は拒否 |
+| `historyLimit` | `200` | snapshot で返す履歴の件数 |
+
+安全要件とプロトコルは [15-web-ui.md](15-web-ui.md) を参照。
+
 ## 10. 承認記録
 
 - 保存先はユーザーの設定ディレクトリの `approvals.json`。プロジェクトの config とは分ける。

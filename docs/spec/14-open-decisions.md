@@ -62,6 +62,10 @@
 | D56 | shell の子プロセス環境 | 許可リストの変数だけを渡す。`OPENCODE_API_KEY` などは渡さない | 確定 |
 | D57 | read の拒否リスト | 作業ディレクトリ外、`.env*`、`approvals.json`、秘密鍵、`.git`、`.ssh` を拒否。realpath 後に検査 | 確定 |
 | D58 | 秘密情報の置き場所 | `~/.config/next-harness/.env` (Windows は `%APPDATA%\next-harness\.env`)。CLI が起動時に読み、既存 env は上書きしない | 確定 |
+| D59 | `session.restored` イベント | 復元成功時に発行する。既存のイベント一覧への追加 | 確定 |
+| D60 | `session.created.autoWake` | 永続化のため optional で追加。既存購読者は無視できる | 確定 |
+| D61 | ロール API の呼び出し | コアが `ModuleHost.callRole(role, method, args)` で store-sqlite のメソッドを呼ぶ | 確定 |
+| D62 | DB の既定パス | ユーザーデータディレクトリの `next-harness/harness.sqlite`。config で変更可 | 確定 |
 
 ## 決定の要点
 

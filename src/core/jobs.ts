@@ -4,32 +4,95 @@ import type { EventBus } from "./bus.ts";
 import type { IdGenerator } from "./ids.ts";
 import type { SessionManager } from "./sessions.ts";
 
+export type ResultStoreGetOptions = {
+  offset?: number;
+  limit?: number;
+};
+
+/** コアが要求する result-store の API。ストアが無ければ MemoryResultStore を使う。 */
 export interface ResultStore {
-  save(jobId: string, content: string | Uint8Array): Promise<{ ref: string; size: number }>;
-  read(ref: string): Promise<string | Uint8Array | undefined>;
-  delete(ref: string): Promise<void>;
-  deleteSession(sessionId: string): Promise<void>;
+  put(job: Job, result?: string | Uint8Array): Promise<void>;
+  get(jobId: string, options?: ResultStoreGetOptions): Promise<JobResult | undefined>;
+  listBySession(sessionId: string, status?: JobStatus): Promise<Job[]>;
+  listUnnotified(sessionId: string): Promise<Job[]>;
+  markNotified(jobIds: string[]): Promise<void>;
+  deleteBySession(sessionId: string): Promise<void>;
+  deleteExpired(ttlDays: number): Promise<number>;
+  flush?(): Promise<void>;
 }
 
 export class MemoryResultStore implements ResultStore {
-  #items = new Map<string, string | Uint8Array>();
+  #items = new Map<string, { job: Job; content?: string | Uint8Array }>();
 
-  async save(jobId: string, content: string | Uint8Array): Promise<{ ref: string; size: number }> {
-    const ref = `mem_${jobId}`;
-    this.#items.set(ref, content);
-    return { ref, size: byteLength(content) };
+  async put(job: Job, result?: string | Uint8Array): Promise<void> {
+    const previous = this.#items.get(job.id);
+    const item: { job: Job; content?: string | Uint8Array } = { job: { ...job, notified: job.notified ?? false } };
+    if (result !== undefined) item.content = result;
+    else if (previous?.content !== undefined) item.content = previous.content;
+    this.#items.set(job.id, item);
   }
 
-  async read(ref: string): Promise<string | Uint8Array | undefined> {
-    return this.#items.get(ref);
+  async get(jobId: string, options: ResultStoreGetOptions = {}): Promise<JobResult | undefined> {
+    const item = this.#items.get(jobId);
+    if (!item || isTerminal(item.job.status) === false) return undefined;
+    const text = item.content === undefined ? "" : asText(item.content);
+    const offset = options.offset ?? 0;
+    const limit = options.limit ?? 20_000;
+    const start = Math.max(0, Math.min(offset, text.length));
+    const end = Math.max(start, Math.min(start + limit, text.length));
+    const result: JobResult = {
+      jobId: item.job.id,
+      tool: item.job.tool,
+      status: item.job.status,
+      summary: item.job.summary ?? "",
+      size: item.job.size ?? byteLength(text),
+      content: text.slice(start, end),
+      truncated: end < text.length,
+    };
+    if (end < text.length) result.nextOffset = end;
+    return result;
   }
 
-  async delete(ref: string): Promise<void> {
-    this.#items.delete(ref);
+  async listBySession(sessionId: string, status?: JobStatus): Promise<Job[]> {
+    return [...this.#items.values()]
+      .map((item) => ({ ...item.job }))
+      .filter((job) => job.sessionId === sessionId && (status === undefined || job.status === status));
   }
 
-  async deleteSession(_sessionId: string): Promise<void> {
-    // メモリ実装はプロセス終了で消える。ジョブ単位の delete(ref) を使う。
+  async listUnnotified(sessionId: string): Promise<Job[]> {
+    return (await this.listBySession(sessionId)).filter(
+      (job) => isTerminal(job.status) && job.notified !== true,
+    );
+  }
+
+  async markNotified(jobIds: string[]): Promise<void> {
+    for (const jobId of jobIds) {
+      const item = this.#items.get(jobId);
+      if (item) item.job.notified = true;
+    }
+  }
+
+  async deleteBySession(sessionId: string): Promise<void> {
+    for (const [jobId, item] of this.#items) {
+      if (item.job.sessionId === sessionId) this.#items.delete(jobId);
+    }
+  }
+
+  async deleteExpired(ttlDays: number): Promise<number> {
+    const cutoff = Date.now() - ttlDays * 86_400_000;
+    let deleted = 0;
+    for (const [jobId, item] of this.#items) {
+      if (!isTerminal(item.job.status) || item.job.notified !== true) continue;
+      if ((item.job.endedAt ?? 0) < cutoff) {
+        this.#items.delete(jobId);
+        deleted += 1;
+      }
+    }
+    return deleted;
+  }
+
+  async flush(): Promise<void> {
+    // memory store has nothing to flush
   }
 }
 
@@ -62,14 +125,14 @@ function byteLength(content: string | Uint8Array): number {
   return typeof content === "string" ? new TextEncoder().encode(content).byteLength : content.byteLength;
 }
 
+function asText(content: string | Uint8Array): string {
+  return typeof content === "string" ? content : new TextDecoder().decode(content);
+}
+
 function truncateSummary(summary: string, maxChars: number): string {
   const chars = [...summary];
   if (chars.length <= maxChars) return summary;
   return `${chars.slice(0, Math.max(0, maxChars - 1)).join("")}…`;
-}
-
-function asText(content: string | Uint8Array): string {
-  return typeof content === "string" ? content : new TextDecoder().decode(content);
 }
 
 /** ジョブ ID・状態・タイムアウト・通知キューを管理する。 */
@@ -102,6 +165,14 @@ export class JobManager {
     this.#log = options.log ?? (() => {});
   }
 
+  setResultStore(store: ResultStore): void {
+    this.#resultStore = store;
+  }
+
+  get resultStore(): ResultStore {
+    return this.#resultStore;
+  }
+
   setMaxSummaryChars(value: number): void {
     this.#maxSummaryChars = value;
   }
@@ -124,10 +195,7 @@ export class JobManager {
       throw error;
     }
 
-    const timeoutMs = Math.min(
-      options.timeoutMs ?? this.#defaultTimeoutMs,
-      this.#maxTimeoutMs,
-    );
+    const timeoutMs = Math.min(options.timeoutMs ?? this.#defaultTimeoutMs, this.#maxTimeoutMs);
     const controller = new AbortController();
     const job: Job = {
       id: this.#ids.job(),
@@ -155,6 +223,7 @@ export class JobManager {
       { v: 1, jobId: job.id, tool: job.tool, callId: job.callId },
       { source: "core", sessionId: job.sessionId },
     );
+    this.#persist(job);
     return { job, controller, signal: controller.signal, timeoutMs, module: options.module };
   }
 
@@ -177,14 +246,7 @@ export class JobManager {
       { v: 1, jobId, callId: job.callId, tool: job.tool, summary, size },
       { source: "core", sessionId: job.sessionId },
     );
-    void this.#resultStore
-      .save(jobId, input.result)
-      .then(({ ref }) => {
-        job.resultRef = ref;
-      })
-      .catch((error: unknown) => {
-        this.#log(`failed to save result for ${jobId}`, error);
-      });
+    this.#persist(job, input.result);
   }
 
   fail(jobId: string, module: string, input: JobFailInput): void {
@@ -197,12 +259,9 @@ export class JobManager {
     this.#finishFailed(job, input);
   }
 
-  /** モジュール死亡時に、そのモジュールの実行中ジョブを failed にする。 */
   failModule(module: string, input: JobFailInput): void {
     for (const job of this.#jobs.values()) {
-      if (job.status === "running" && this.#modules.get(job.id) === module) {
-        this.#finishFailed(job, input);
-      }
+      if (job.status === "running" && this.#modules.get(job.id) === module) this.#finishFailed(job, input);
     }
   }
 
@@ -228,6 +287,7 @@ export class JobManager {
     };
     if (reason !== undefined) payload.reason = reason;
     this.#bus.emit("job.cancelled", payload, { source: "core", sessionId: job.sessionId });
+    this.#persist(job);
     return job;
   }
 
@@ -261,11 +321,18 @@ export class JobManager {
   }
 
   markNotified(jobIds: string[]): void {
+    const changed: string[] = [];
     for (const jobId of jobIds) {
       const job = this.#jobs.get(jobId);
       if (!job || !isTerminal(job.status) || job.notified) continue;
       job.notified = true;
+      changed.push(jobId);
       this.#bus.emit("job.notified", { v: 1, jobId }, { source: "core", sessionId: job.sessionId });
+    }
+    if (changed.length > 0) {
+      void this.#resultStore.markNotified(changed).catch((error: unknown) => {
+        this.#log(`failed to mark jobs notified: ${changed.join(",")}`, error);
+      });
     }
   }
 
@@ -274,7 +341,10 @@ export class JobManager {
     for (;;) {
       const jobs = ids
         .map((id) => this.#jobs.get(id))
-        .filter((job): job is Job => job !== undefined && this.#sessions.isSelfOrDescendant(callerSessionId, job.ownerSessionId));
+        .filter(
+          (job): job is Job =>
+            job !== undefined && this.#sessions.isSelfOrDescendant(callerSessionId, job.ownerSessionId),
+        );
       if (jobs.length === ids.length && jobs.every((job) => isTerminal(job.status))) {
         this.#markDeliveredByWait(jobs);
         return jobs;
@@ -299,22 +369,42 @@ export class JobManager {
       throw new Error(`job ${jobId} is outside the caller's scope`);
     }
     if (!isTerminal(job.status)) throw new Error(`job ${jobId} is still running`);
-    const ref = job.resultRef;
-    const raw = ref ? await this.#resultStore.read(ref) : undefined;
-    const text = raw === undefined ? "" : asText(raw);
-    const start = Math.max(0, Math.min(offset, text.length));
-    const end = Math.max(start, Math.min(start + limit, text.length));
-    const result: JobResult = {
-      jobId: job.id,
-      tool: job.tool,
-      status: job.status,
-      summary: job.summary ?? "",
-      size: job.size ?? byteLength(text),
-      content: text.slice(start, end),
-      truncated: end < text.length,
-    };
-    if (end < text.length) result.nextOffset = end;
+    const result = await this.#resultStore.get(jobId, { offset, limit });
+    if (!result) throw new Error(`result not found: ${jobId}`);
     return result;
+  }
+
+  /** 永続化されたジョブをコアへ戻す。running は interrupted にする。 */
+  restoreJobs(jobs: Job[]): void {
+    for (const saved of jobs) {
+      const job: Job = {
+        ...saved,
+        ownerSessionId: saved.ownerSessionId ?? saved.sessionId,
+        notified: saved.notified ?? false,
+      };
+      this.#modules.set(job.id, "restored");
+      if (job.status === "running") {
+        job.status = "failed";
+        job.endedAt = this.#now();
+        job.summary = truncateSummary("interrupted", this.#maxSummaryChars);
+        job.size = 0;
+        this.#jobs.set(job.id, job);
+        this.#bus.emit(
+          "job.failed",
+          {
+            v: 1,
+            jobId: job.id,
+            callId: job.callId,
+            tool: job.tool,
+            error: { code: ERROR_CODES.interrupted, message: "interrupted by restart" },
+          },
+          { source: "core", sessionId: job.sessionId },
+        );
+        this.#persist(job);
+      } else {
+        this.#jobs.set(job.id, job);
+      }
+    }
   }
 
   async deleteSession(sessionId: string): Promise<void> {
@@ -322,19 +412,22 @@ export class JobManager {
       if (job.sessionId === sessionId) {
         this.#clearTimer(job.id);
         this.#controllers.get(job.id)?.abort();
-        if (job.resultRef !== undefined) await this.#resultStore.delete(job.resultRef);
         this.#jobs.delete(job.id);
         this.#modules.delete(job.id);
         this.#controllers.delete(job.id);
       }
     }
-    await this.#resultStore.deleteSession(sessionId);
+    await this.#resultStore.deleteBySession(sessionId);
   }
 
   stopAll(by: CancelBy = "system"): void {
     for (const job of [...this.#jobs.values()]) {
       if (job.status === "running") this.cancel(job.id, by, "shutdown");
     }
+  }
+
+  async flush(): Promise<void> {
+    await this.#resultStore.flush?.();
   }
 
   #finishFailed(job: Job, input: JobFailInput): void {
@@ -350,12 +443,27 @@ export class JobManager {
       { v: 1, jobId: job.id, callId: job.callId, tool: job.tool, error: input },
       { source: "core", sessionId: job.sessionId },
     );
+    this.#persist(job);
   }
 
   #markDeliveredByWait(jobs: Job[]): void {
+    const delivered: string[] = [];
     for (const job of jobs) {
-      if (isTerminal(job.status)) job.notified = true;
+      if (!isTerminal(job.status) || job.notified) continue;
+      job.notified = true;
+      delivered.push(job.id);
     }
+    if (delivered.length > 0) {
+      void this.#resultStore.markNotified(delivered).catch((error: unknown) => {
+        this.#log(`failed to mark wait-delivered jobs: ${delivered.join(",")}`, error);
+      });
+    }
+  }
+
+  #persist(job: Job, result?: string | Uint8Array): void {
+    this.#resultStore.put(job, result).catch((error: unknown) => {
+      this.#log(`failed to persist job ${job.id}`, error);
+    });
   }
 
   #clearTimer(jobId: string): void {

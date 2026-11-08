@@ -53,7 +53,7 @@ type EventEnvelope<TType extends string = string, TPayload = unknown> = {
 
 ### 4.2 セッション / ターン
 
-- `session.created` / `session.closed` / `session.forked` / `session.deleted`: コアがセッション状態を変更した。`session.deleted` は履歴と結果の掃除を store に促す。
+- `session.created` / `session.closed` / `session.forked` / `session.deleted` / `session.restored`: コアがセッション状態を変更した。`session.deleted` は履歴と結果の掃除を、`session.restored` は復元完了を store に伝える。
 - `turn.started` / `turn.ended`: 1 ターンの開始と終了。`turnId` で対応付ける。`turn.ended.reason` は `completed` / `cancelled` / `error` / `context_overflow`。`context_overflow` のとき履歴は切り捨てない。
 
 ### 4.3 モデル

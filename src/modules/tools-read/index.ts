@@ -27,6 +27,7 @@ function isDenied(baseDir: string, path: string): boolean {
   if (DENIED_BASENAMES.has(name)) return true;
   if (/\.(pem|key|p12|pfx|jks|keystore)$/i.test(name)) return true;
   if (/^(credentials|secrets)\.(json|ya?ml|toml)$/i.test(name)) return true;
+  if (/\.(db|sqlite|sqlite3)(-wal|-shm)?$/i.test(name)) return true;
   if (parts.some((part) => DENIED_DIRECTORIES.has(part))) return true;
   return false;
 }

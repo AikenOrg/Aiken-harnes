@@ -88,7 +88,7 @@ export class HistoryManager {
       throw new Error(`session ${sessionId} already has history`);
     }
     this.#messages.set(sessionId, [...messages]);
-    session.state = "idle";
+    void session;
   }
 
   rewrite(sessionId: string, messages: Message[], reason: string): void {

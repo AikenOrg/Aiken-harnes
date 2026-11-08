@@ -82,6 +82,7 @@ describe("security boundaries", () => {
     await writeFile(join(dir, ".env"), "OPENCODE_API_KEY=secret", "utf8");
     await writeFile(join(dir, "README.md"), "hello", "utf8");
     await writeFile(join(dir, "id_rsa"), "private", "utf8");
+    await writeFile(join(dir, "harness.sqlite"), "db", "utf8");
     await symlink(join(dir, ".env"), join(dir, "safe.txt"));
     await writeFile(join(outside, "outside.txt"), "outside", "utf8");
 
@@ -92,6 +93,7 @@ describe("security boundaries", () => {
       { toolCalls: [{ id: "r3", name: "read", args: { path: "../outside.txt" } }], stop: "tool_use" },
       { toolCalls: [{ id: "r4", name: "read", args: { path: "safe.txt" } }], stop: "tool_use" },
       { toolCalls: [{ id: "r5", name: "read", args: { path: "README.md" } }], stop: "tool_use" },
+      { toolCalls: [{ id: "r6", name: "read", args: { path: "harness.sqlite" } }], stop: "tool_use" },
       { text: "done", stop: "end" },
     ]);
     const harness = new Harness({
@@ -118,6 +120,7 @@ describe("security boundaries", () => {
     expect(results[2]?.isError).toBe(true);
     expect(results[3]?.isError).toBe(true);
     expect(results[4]).toMatchObject({ content: "hello" });
+    expect(results[5]?.isError).toBe(true);
     await harness.stop();
   });
 

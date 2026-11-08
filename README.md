@@ -22,6 +22,9 @@ ANTHROPIC_API_KEY=... bun run src/index.ts \
 # OpenCode Go
 # ~/.config/next-harness/.env に OPENCODE_API_KEY を置く (Windows は %APPDATA%\next-harness\.env)
 bun run src/index.ts --config config/opencode-go.config.json --approve-all
+
+# SQLite 永続化 + session.restore
+bun run src/index.ts --config config/m3.config.json --approve-all
 ```
 
 `--events` を付けるとイベントを表示する。実装状況は [`docs/impl/m1.md`](docs/impl/m1.md) を参照。
@@ -40,4 +43,4 @@ bun run src/index.ts --config config/opencode-go.config.json --approve-all
 
 ## ステータス
 
-2026-11-08: M1 のコア、非同期 shell、Anthropic / OpenCode Go プロバイダーを実装。永続化・承認 UI・compaction は未実装。
+2026-11-08: M1 のコア、非同期 shell、Anthropic / OpenCode Go、SQLite 永続化と session.restore を実装。承認 UI・compaction・agent 系・Web UI は未実装。

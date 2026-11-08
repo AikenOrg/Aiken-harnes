@@ -73,7 +73,8 @@ describe("M1 specification details", () => {
     };
     harness.sessions.setState(session.id, "restoring");
     harness.history.restore(session.id, [message]);
-    expect(harness.sessions.get(session.id).state).toBe("idle");
+    expect(harness.sessions.get(session.id).state).toBe("restoring");
+    harness.sessions.setState(session.id, "idle");
     expect(harness.history.count(session.id)).toBe(1);
     expect(() => harness.history.restore(session.id, [message])).toThrow();
     await harness.stop();

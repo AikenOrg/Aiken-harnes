@@ -40,7 +40,11 @@ export class SessionManager {
     if (options.parentId !== undefined) session.parentId = options.parentId;
     this.#sessions.set(session.id, session);
 
-    const payload: { v: 1; model: string; parentId?: string } = { v: 1, model: session.model };
+    const payload: { v: 1; model: string; autoWake: boolean; parentId?: string } = {
+      v: 1,
+      model: session.model,
+      autoWake,
+    };
     if (session.parentId !== undefined) payload.parentId = session.parentId;
     this.#bus.emit("session.created", payload, { source: "core", sessionId: session.id });
     return session;
@@ -48,8 +52,13 @@ export class SessionManager {
 
   /** 永続化モジュールが用意したセッションを、ID を保ったままコアへ戻す。 */
   restorePrepared(session: Session): Session {
+    if (this.#sessions.has(session.id)) throw new Error(`session already exists: ${session.id}`);
     this.#sessions.set(session.id, session);
     return session;
+  }
+
+  remove(sessionId: string): void {
+    this.#sessions.delete(sessionId);
   }
 
   get(sessionId: string): Session {

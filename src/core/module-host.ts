@@ -59,6 +59,20 @@ export class ModuleHost {
     return this.#roleOwners.has(role);
   }
 
+  roleOwner(role: ModuleRole): string | undefined {
+    return this.#roleOwners.get(role);
+  }
+
+  async callRole<T = unknown>(role: ModuleRole, method: string, args?: unknown): Promise<T> {
+    const owner = this.#roleOwners.get(role);
+    if (!owner) throw new Error(`role not available: ${role}`);
+    const item = this.#loaded.find((entry) => entry.definition.manifest.name === owner);
+    if (!item) throw new Error(`role owner not loaded: ${role} (${owner})`);
+    const fn = item.definition.methods?.[method];
+    if (!fn) throw new Error(`role method not found: ${role}.${method}`);
+    return (await fn(args)) as T;
+  }
+
   async load(definitions: ModuleDefinition[]): Promise<void> {
     if (definitions.length > 0 && !this.#options.autoApprove && !this.#options.approve) {
       throw new Error("module approval is required (pass an approve callback or autoApprove)");

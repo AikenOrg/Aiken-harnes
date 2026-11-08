@@ -46,6 +46,7 @@ export const eventSchemas = {
     v,
     parentId: z.string().optional(),
     model: z.string(),
+    autoWake: z.boolean().optional(),
   }),
   "session.closed": z.object({
     v,
@@ -56,6 +57,10 @@ export const eventSchemas = {
     fromSessionId: z.string(),
   }),
   "session.deleted": z.object({
+    v,
+    sessionId: z.string(),
+  }),
+  "session.restored": z.object({
     v,
     sessionId: z.string(),
   }),
@@ -280,6 +285,7 @@ export const EVENT_DESCRIPTIONS = {
   "session.closed": "セッション終了。",
   "session.forked": "履歴を複製して分岐。",
   "session.deleted": "セッションを削除した。history-store / result-store は連動して掃除する。",
+  "session.restored": "保存済みセッションを復元し、idle に戻した。",
   "turn.started": "ターン開始。",
   "turn.ended": "ターン終了。",
   "model.requested": "モデル呼び出しの直前。",

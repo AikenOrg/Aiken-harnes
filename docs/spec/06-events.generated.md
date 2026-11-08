@@ -13,11 +13,14 @@
 | `session.created` | セッション作成。 | `v` | 1 | ✓ |
 |  |  | `parentId` | string |  |
 |  |  | `model` | string | ✓ |
+|  |  | `autoWake` | boolean |  |
 | `session.closed` | セッション終了。 | `v` | 1 | ✓ |
 |  |  | `reason` | string |  |
 | `session.forked` | 履歴を複製して分岐。 | `v` | 1 | ✓ |
 |  |  | `fromSessionId` | string | ✓ |
 | `session.deleted` | セッションを削除した。history-store / result-store は連動して掃除する。 | `v` | 1 | ✓ |
+|  |  | `sessionId` | string | ✓ |
+| `session.restored` | 保存済みセッションを復元し、idle に戻した。 | `v` | 1 | ✓ |
 |  |  | `sessionId` | string | ✓ |
 | `turn.started` | ターン開始。 | `v` | 1 | ✓ |
 |  |  | `turnId` | string | ✓ |

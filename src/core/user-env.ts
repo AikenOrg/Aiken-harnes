@@ -1,17 +1,7 @@
 import { readFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { userEnvFile } from "../shared/paths.ts";
 
-/** OS のユーザー設定ディレクトリ。approvals.json などもここに置く。 */
-export function userConfigDir(): string {
-  if (process.env.XDG_CONFIG_HOME) return process.env.XDG_CONFIG_HOME;
-  if (process.platform === "win32" && process.env.APPDATA) return process.env.APPDATA;
-  return join(homedir(), ".config");
-}
-
-export function userEnvFile(): string {
-  return process.env.HARNESS_ENV_FILE ?? join(userConfigDir(), "next-harness", ".env");
-}
+export { defaultDbPath, userConfigDir, userDataDir, userEnvFile } from "../shared/paths.ts";
 
 /** 最小限の .env パーサ。既存の環境変数は上書きしない。 */
 export function parseEnv(content: string): Record<string, string> {

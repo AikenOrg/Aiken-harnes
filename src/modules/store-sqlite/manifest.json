@@ -1,0 +1,20 @@
+{
+  "name": "store-sqlite",
+  "version": "0.1.0",
+  "roles": ["history-store", "session-store", "result-store"],
+  "critical": true,
+  "runner": "inprocess",
+  "main": "index.ts",
+  "permissions": [
+    { "cap": "history.read" },
+    { "cap": "history.restore" },
+    { "cap": "fs.write", "paths": ["."] }
+  ],
+  "subscribes": [
+    "message.appended",
+    "history.rewritten",
+    "session.*",
+    "job.*",
+    "core.stopping"
+  ]
+}

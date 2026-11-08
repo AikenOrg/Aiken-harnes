@@ -4,7 +4,8 @@ import { configSchema, type HarnessConfig } from "../protocol/config.ts";
 import type { ModuleManifest } from "../protocol/manifest.ts";
 import type { ModelInfo } from "../protocol/provider.ts";
 import type { EventEnvelope } from "../protocol/events.ts";
-import type { JobStatus } from "../protocol/jobs.ts";
+import type { Job, JobStatus } from "../protocol/jobs.ts";
+import type { Message } from "../protocol/messages.ts";
 import type { Session } from "../protocol/session.ts";
 import type { ToolDefinition } from "../protocol/tools.ts";
 import { EventBus } from "./bus.ts";
@@ -17,6 +18,7 @@ import { ModuleHost, type ModuleDefinition } from "./module-host.ts";
 import { PermissionBroker } from "./permissions.ts";
 import { PromptAssembler } from "./prompt.ts";
 import { ProviderRegistry } from "./providers.ts";
+import { RoleResultStore } from "./role-result-store.ts";
 import { SecretsBroker } from "./context.ts";
 import { SessionManager } from "./sessions.ts";
 import { ToolRegistry } from "./tools.ts";
@@ -61,6 +63,7 @@ export class Harness {
 
   #turnLoop: TurnLoop;
   #definitions: ModuleDefinition[];
+  #logger: Logger;
   #queues = new Map<string, QueuedMessage[]>();
   #running = new Set<string>();
   #started = false;
@@ -78,6 +81,7 @@ export class Harness {
     const now = options.now ?? (() => Date.now());
     const secrets = new SecretsBroker(config.secrets);
 
+    this.#logger = logger;
     this.bus = new EventBus({
       bootId,
       now,
@@ -119,6 +123,10 @@ export class Harness {
       baseDir: options.baseDir ?? process.cwd(),
       ...(options.autoApprove !== undefined ? { autoApprove: options.autoApprove } : {}),
       ...(options.approve !== undefined ? { approve: options.approve } : {}),
+      sessionRestore: {
+        listRestorable: () => this.listRestorable(),
+        restore: (sessionId) => this.restoreSession(sessionId),
+      },
     });
     this.#turnLoop = new TurnLoop({
       bus: this.bus,
@@ -151,6 +159,11 @@ export class Harness {
     try {
       await this.modules.load(this.#definitions);
       if (this.providers.size === 0) throw new Error("no provider registered");
+      if (this.modules.hasRole("result-store")) {
+        this.jobs.setResultStore(
+          new RoleResultStore((method, args) => this.modules.callRole("result-store", method, args)),
+        );
+      }
     } catch (error) {
       await this.modules.dispose();
       throw error;
@@ -161,6 +174,18 @@ export class Harness {
       { v: 1, version: CORE_VERSION, modules: this.modules.loadedNames },
       { source: "core" },
     );
+
+    if (this.config.restore === "last" && this.modules.hasRole("session-store")) {
+      try {
+        const latest = await this.modules.callRole<Session | undefined>(
+          "session-store",
+          "latestRestorable",
+        );
+        if (latest) await this.restoreSession(latest.id);
+      } catch (error) {
+        this.#logger.error("auto restore failed", error);
+      }
+    }
   }
 
   async stop(reason = "normal"): Promise<void> {
@@ -169,8 +194,61 @@ export class Harness {
     this.bus.emit("core.stopping", { v: 1, reason }, { source: "core" });
     this.#turnLoop.cancelAll("system", "shutdown");
     this.jobs.stopAll("system");
+    await this.flushPersistence();
     await this.modules.dispose();
     this.#started = false;
+  }
+
+  async flushPersistence(): Promise<void> {
+    await this.jobs.flush();
+    for (const role of ["history-store", "session-store", "result-store"] as const) {
+      if (!this.modules.hasRole(role)) continue;
+      try {
+        await this.modules.callRole(role, "flush");
+      } catch {
+        // store modules without flush are fine
+      }
+    }
+  }
+
+  async listRestorable(): Promise<Session[]> {
+    if (!this.modules.hasRole("session-store")) return [];
+    return this.modules.callRole<Session[]>("session-store", "listRestorable");
+  }
+
+  async restoreSession(sessionId: string): Promise<Session> {
+    if (!this.modules.hasRole("session-store")) throw new Error("session-store is not available");
+    if (!this.modules.hasRole("history-store")) throw new Error("history-store is not available");
+    const existing = this.sessions.tryGet(sessionId);
+    if (existing) {
+      if (existing.state !== "error") throw new Error(`session is already loaded: ${sessionId}`);
+      this.sessions.remove(sessionId);
+      this.history.deleteSession(sessionId);
+    }
+    const saved = await this.modules.callRole<Session | undefined>("session-store", "load", sessionId);
+    if (!saved) throw new Error(`session not found: ${sessionId}`);
+    if (saved.state === "closed") throw new Error(`closed session cannot be restored: ${sessionId}`);
+
+    const restoring: Session = { ...saved, state: "restoring" };
+    this.sessions.restorePrepared(restoring);
+    try {
+      const messages = await this.modules.callRole<Message[]>("history-store", "loadMessages", sessionId);
+      this.history.restore(sessionId, messages);
+      if (this.modules.hasRole("result-store")) {
+        const jobs = await this.modules.callRole<Job[]>("result-store", "listBySession", { sessionId });
+        this.jobs.restoreJobs(jobs);
+      }
+      this.sessions.setState(sessionId, "idle");
+      this.bus.emit(
+        "session.restored",
+        { v: 1, sessionId },
+        { source: "core", sessionId },
+      );
+      return this.sessions.get(sessionId);
+    } catch (error) {
+      this.sessions.setState(sessionId, "error");
+      throw error;
+    }
   }
 
   createSession(model?: string, options?: { parentId?: string; autoWake?: boolean }): Session {
@@ -194,6 +272,7 @@ export class Harness {
     this.sessions.delete(sessionId);
     this.history.deleteSession(sessionId);
     await this.jobs.deleteSession(sessionId);
+    await this.flushPersistence();
   }
 
   failModule(name: string, error: { code: string; message: string } = { code: "module_died", message: "module died" }): void {

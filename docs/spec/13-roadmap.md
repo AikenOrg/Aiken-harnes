@@ -31,12 +31,14 @@
 - 実装済み: JobManager、`ctx.jobs.done/fail`、タイムアウト、通知キュー、`wait` / `cancel` / `read_result` / `list_jobs`、非同期 shell（whitelist/full、プロセス kill）。
 - 未実装: SQLite result-store。
 
-### M3: 永続化と UI
+### M3: 永続化と UI (永続化は実装済み)
 
 - SQLite history-store (投影) + session-store、`ctx.history.restore` と `session.restore` による復元
 - WebUI (HTTP/WS) とイベント購読
 - ストリーミング表示 (`model.delta` の明示購読)
 - 完了条件: プロセス再起動後も履歴とセッションが復元される。
+- 実装: `store-sqlite`、`session.restore`、`restore: "last"`、TTL 掃除。詳細は [../impl/m3.md](../impl/m3.md)。
+- 未実装: Web UI。
 
 ### M4: 権限と compaction
 

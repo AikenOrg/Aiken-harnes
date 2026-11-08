@@ -103,6 +103,24 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 - コアは `config` の内容を解釈しない。
 - ただし `shell` と `jobs` はコアが解釈する横断設定。
 
+`store-sqlite` の設定:
+
+```jsonc
+{
+  "use": "./modules/store-sqlite",
+  "config": {
+    "path": "~/.local/share/next-harness/harness.sqlite",
+    "ttlDays": 30,
+    "cleanupIntervalMs": 21600000,
+    "batchMs": 50,
+    "batchSize": 100
+  }
+}
+```
+
+- `path` 省略時はユーザーデータディレクトリの `next-harness/harness.sqlite`。
+- `ttlDays` / `cleanupIntervalMs` は結果の TTL 掃除。
+
 ## 4. `models`
 
 | キー | 型 | 内容 |

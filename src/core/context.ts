@@ -23,6 +23,7 @@ import type {
 } from "../protocol/ctx.ts";
 import type { ToolDefinition } from "../protocol/tools.ts";
 import type { Message, NewMessage } from "../protocol/messages.ts";
+import type { Session } from "../protocol/session.ts";
 import type { PromptSegmentInput } from "../protocol/prompt.ts";
 import type { Provider } from "../protocol/provider.ts";
 import { eventMatches, type EventBus } from "./bus.ts";
@@ -84,6 +85,10 @@ export type ContextFactoryOptions = {
   secrets: SecretsBroker;
   log: Logger;
   baseDir: string;
+  sessionRestore?: {
+    listRestorable(): Promise<Session[]>;
+    restore(sessionId: string): Promise<Session>;
+  };
   callModule?: (caller: string, target: string, method: string, args?: unknown) => Promise<unknown>;
 };
 
@@ -299,11 +304,13 @@ export function createModuleContext(
     },
     listRestorable: () => {
       requireCap("session.manage");
-      throw new Error("session.listRestorable requires a session-store (not implemented in M1)");
+      if (!options.sessionRestore) throw new Error("session-store is not available");
+      return options.sessionRestore.listRestorable();
     },
-    restore: () => {
+    restore: (sessionId) => {
       requireCap("session.manage");
-      throw new Error("session.restore requires a session-store (not implemented in M1)");
+      if (!options.sessionRestore) throw new Error("session-store is not available");
+      return options.sessionRestore.restore(sessionId);
     },
     close: (sessionId) => {
       requireCap("session.manage");

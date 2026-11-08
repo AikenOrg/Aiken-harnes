@@ -250,6 +250,7 @@ export class Harness {
       maxSteps: options.maxSteps ?? 50,
       overflowRatio: options.overflowRatio ?? config.context?.overflowRatio ?? 0.8,
       maxNotificationChars: options.maxNotificationChars ?? config.jobs?.maxNotificationChars ?? 2000,
+      maxOutputContinuations: config.context?.maxOutputContinuations ?? 2,
       hasCompactor: () => this.modules.hasRole("compactor"),
       modelLimiter: new Semaphore(this.#agentLimits.maxConcurrentModelCalls),
       reasoningFor: (session) =>

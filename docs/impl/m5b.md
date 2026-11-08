@@ -141,12 +141,12 @@ type Block =
 
 reasoning は OpenAI 互換では出力トークンに含まれる。長い reasoning が `max_tokens` に達すると、上流は `finish_reason: "length"` を返し、本文が空のまま終わることがある。実 API で `max_tokens: 220` のとき、reasoning 726 文字・本文 0 文字で `length` になることを確認した。
 
-- `TurnLoop` は `length` を `completed` にせず、`turn.ended.reason = "length"` にする。
-- そのターンの assistant メッセージには `truncated: true` を付け、SQLite の `interrupted` 列に 2 として保存する。
-- ツール呼び出しが途中で切れている可能性があるため、`length` のターンではツールを実行しない。
-- サブエージェントのジョブは `failed (code: "length")` にする。
-- UI は `truncated (length)` バッジとトーストを表示する。
-- reasoning 用の設定例では `provider-opencode-go` の `maxTokens` を 16384 にしている。長い reasoning が頻発する場合は増やす。
+- `TurnLoop` は `length` のとき、不完全な tool_call を実行しない。
+- 自動継続用の system メッセージを履歴へ追加し、最大 `context.maxOutputContinuations`（既定 2）回まで同じターンを継続する。OpenCode の `OutputLimit` と同じ考え方。
+- 継続を使い切った場合だけ `turn.ended.reason = "length"` とし、assistant に `truncated: true` を付ける。SQLite の `interrupted` 列に 2 として保存する。
+- サブエージェントのジョブは、継続を使い切った場合 `failed (code: "length")` にする。
+- UI は部分応答に `truncated (length)` バッジを表示し、継続を使い切ったときだけトーストを出す。
+- reasoning 用の設定例では `provider-opencode-go` の `maxTokens` を 32768 にしている。長い reasoning が頻発する場合はさらに増やす。
 
 ## 8.2 長いセッションの turn error
 

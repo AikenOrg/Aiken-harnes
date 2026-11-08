@@ -98,7 +98,7 @@ type Block =
 |---|---|
 | `end` | ターン終了 |
 | `tool_use` | tool_call を実行してループ継続 |
-| `length` | `turn.ended (reason: "length")`。履歴の assistant に `truncated: true` を付け、ツールは実行しない |
+| `length` | 不完全な tool_call は実行しない。継続メッセージを履歴へ追加し、最大 `context.maxOutputContinuations` 回まで自動継続する。上限到達時は `turn.ended (reason: "length")` とし、assistant に `truncated: true` を付ける |
 | `error` | `model.failed`。`critical` なら停止 |
 
 - ストリームが `stop` を返さずに終了した場合は `stop.reason = "error"` とみなす。
@@ -194,6 +194,7 @@ src/modules/provider-openai/
 - `usage.prompt_tokens_details.cached_tokens` を `cacheRead` として返す。
 - 400 のコンテキスト長超過は `context_overflow` に変換する。
 - `config.logRaw` でリクエスト/SSE を `ctx.log.debug` に出す。Authorization ヘッダーはログに出さない。
+- `maxTokens` の既定は `32768`（モデルの `maxOutput` で上限を切る）。長い reasoning に備える。
 - `config.reasoningStyle`: `effort_param`（既定）/ `thinking_object` / `both` / `anthropic_thinking` / `none`。
 - `config.effortMap`: 共通 effort をモデル固有値へ変換する。
 - `config.echoReasoning`: `never`（既定）/ `tool_turns` / `always`。assistant の `reasoning_content` として返送する。

@@ -190,7 +190,9 @@ manifest はコードとは別のファイルに置く。コードへの埋め�
 | キー | 既定 | 内容 |
 |---|---|---|
 | `overflowRatio` | `0.8` | `lastInputTokens + maxTokens > ratio * contextWindow` なら compaction を試みる |
+| `maxOutputContinuations` | `2` | 出力トークン上限 (length) で自動継続する回数 |
 
+- `maxOutputContinuations` を使い切るまで、`length` のたびに継続用の system メッセージを追加して同じターンを続ける。
 - compactor が無い場合は履歴を切り捨てず、`turn.ended (reason: "context_overflow")` で止める。
 - プロバイダーがコンテキスト長超過を返した場合も同じ扱い。
 - 値は 0 より大きく 1 以下。

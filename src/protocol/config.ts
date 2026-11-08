@@ -43,6 +43,8 @@ export const jobsConfigSchema = z.object({
 export const contextConfigSchema = z.object({
   /** コンテキスト上限に対する使用率のしきい値。超えたら compaction か停止。 */
   overflowRatio: z.number().gt(0).max(1).optional(),
+  /** 出力トークン上限 (length) で自動継続する回数。 */
+  maxOutputContinuations: z.number().int().nonnegative().optional(),
 });
 
 export const agentsConfigSchema = z.object({

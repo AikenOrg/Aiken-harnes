@@ -17,6 +17,9 @@ import type { SecretsBroker } from "./context.ts";
 import type { SessionManager } from "./sessions.ts";
 import type { ToolRegistry } from "./tools.ts";
 
+const CONTINUE_AFTER_OUTPUT_LIMIT =
+  "Your last response hit the output token limit (stop reason: length). Do not apologize, recap, or repeat yourself. Break the remaining work into smaller pieces.";
+
 export type TurnLoopOptions = {
   bus: EventBus;
   sessions: SessionManager;
@@ -32,6 +35,7 @@ export type TurnLoopOptions = {
   maxSteps?: number;
   overflowRatio?: number;
   maxNotificationChars?: number;
+  maxOutputContinuations?: number;
   hasCompactor?: () => boolean;
   modelLimiter?: Semaphore;
   reasoningFor?: (session: Session) => ReasoningParams | undefined;
@@ -58,7 +62,10 @@ function errorCodeOf(error: unknown): string | undefined {
   return undefined;
 }
 
-function textMessage(role: "user" | "assistant" | "tool" | "notification", text: string): NewMessage {
+function textMessage(
+  role: "system" | "user" | "assistant" | "tool" | "notification",
+  text: string,
+): NewMessage {
   return { role, blocks: [{ type: "text", text }] };
 }
 
@@ -82,6 +89,7 @@ export class TurnLoop {
   #maxSteps: number;
   #overflowRatio: number;
   #maxNotificationChars: number;
+  #maxOutputContinuations: number;
   #hasCompactor: () => boolean;
   #modelLimiter: Semaphore | undefined;
   #reasoningFor: ((session: Session) => ReasoningParams | undefined) | undefined;
@@ -102,6 +110,7 @@ export class TurnLoop {
     this.#maxSteps = options.maxSteps ?? 50;
     this.#overflowRatio = options.overflowRatio ?? 0.8;
     this.#maxNotificationChars = options.maxNotificationChars ?? 2000;
+    this.#maxOutputContinuations = options.maxOutputContinuations ?? 2;
     this.#hasCompactor = options.hasCompactor ?? (() => false);
     this.#modelLimiter = options.modelLimiter;
     this.#reasoningFor = options.reasoningFor;
@@ -137,6 +146,8 @@ export class TurnLoop {
 
     let ended = false;
     let finalText = "";
+    let continuationText = "";
+    let outputContinuations = 0;
     let result: TurnResult = { reason: "error", finalText: "" };
     const end = (
       reason: "completed" | "cancelled" | "error" | "context_overflow" | "length",
@@ -381,12 +392,20 @@ export class TurnLoop {
           });
         }
         if (truncated) {
-          end("length", responseText);
-          return result;
+          if (outputContinuations >= this.#maxOutputContinuations) {
+            end("length", continuationText + responseText);
+            return result;
+          }
+          outputContinuations += 1;
+          continuationText += responseText;
+          this.#history.append(session.id, textMessage("system", CONTINUE_AFTER_OUTPUT_LIMIT));
+          continue;
         }
+        outputContinuations = 0;
+        continuationText = "";
 
         if (toolCalls.size === 0) {
-          end("completed", responseText);
+          end("completed", continuationText + responseText);
           return result;
         }
 

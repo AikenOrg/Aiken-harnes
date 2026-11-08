@@ -50,7 +50,7 @@ const configSchema = z.object({
     .string()
     .url()
     .default("https://opencode.ai/inference/go/openai/v1/chat/completions"),
-  maxTokens: z.number().int().positive().default(8_192),
+  maxTokens: z.number().int().positive().default(32_768),
   logRaw: z.boolean().default(false),
   userAgent: z.string().default("next-harness/0.1.0"),
   /** reasoning の送信形式。既定は最上位の reasoning_effort。 */

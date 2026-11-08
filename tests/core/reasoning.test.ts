@@ -134,7 +134,12 @@ describe("reasoning", () => {
       }
     }
     const harness = new Harness({
-      config: { version: 1, modules: [], models: { default: "mock/reason" } },
+      config: {
+        version: 1,
+        modules: [],
+        models: { default: "mock/reason" },
+        context: { maxOutputContinuations: 0 },
+      },
       modules: [providerModule(new LengthProvider() as never, "provider-length")],
       autoApprove: true,
       ids: createSequentialIds("reasonlength"),
@@ -180,7 +185,12 @@ describe("reasoning", () => {
       }
     }
     const harness = new Harness({
-      config: { version: 1, modules: [], models: { default: "mock/reason" } },
+      config: {
+        version: 1,
+        modules: [],
+        models: { default: "mock/reason" },
+        context: { maxOutputContinuations: 0 },
+      },
       modules: [providerModule(new LengthProvider() as never, "provider-length")],
       autoApprove: true,
       ids: createSequentialIds("agentlength"),
@@ -197,6 +207,103 @@ describe("reasoning", () => {
         (event.payload as { jobId?: string }).jobId === spawned.jobId,
     );
     expect((failed?.payload as { error: { code: string } }).error.code).toBe("length");
+    await harness.stop();
+  });
+
+  test("automatically continues after length and completes with the combined text", async () => {
+    class ContinueProvider {
+      calls = 0;
+      models(): ModelInfo[] {
+        return [
+          {
+            id: "mock/reason",
+            provider: "mock",
+            contextWindow: 100_000,
+            maxOutput: 1_000,
+            supportsTools: true,
+          },
+        ];
+      }
+      async *stream(_request: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent> {
+        if (signal.aborted) return;
+        this.calls += 1;
+        if (this.calls === 1) {
+          yield { type: "text", delta: "part one " };
+          yield { type: "stop", reason: "length" };
+        } else {
+          yield { type: "text", delta: "part two" };
+          yield { type: "stop", reason: "end" };
+        }
+      }
+    }
+    const provider = new ContinueProvider();
+    const harness = new Harness({
+      config: { version: 1, modules: [], models: { default: "mock/reason" } },
+      modules: [providerModule(provider as never, "provider-length")],
+      autoApprove: true,
+      ids: createSequentialIds("reasoncontinue"),
+    });
+    const events: EventEnvelope[] = [];
+    harness.on("*", (event) => events.push(event));
+    await harness.start();
+    const session = harness.createSession("mock/reason");
+    await harness.send(session.id, "long");
+    expect(provider.calls).toBe(2);
+    const history = harness.history.read(session.id);
+    expect(history.map((message) => message.role)).toEqual(["user", "assistant", "system", "assistant"]);
+    expect(history[1]?.truncated).toBe(true);
+    expect(history[3]?.truncated).toBeUndefined();
+    expect(history[3]?.blocks).toEqual([{ type: "text", text: "part two" }]);
+    const end = events.find((event) => event.type === "turn.ended" && event.sessionId === session.id);
+    expect((end?.payload as { reason: string }).reason).toBe("completed");
+    await harness.stop();
+  });
+
+  test("stops after maxOutputContinuations and reports length", async () => {
+    class AlwaysLengthProvider {
+      calls = 0;
+      models(): ModelInfo[] {
+        return [
+          {
+            id: "mock/reason",
+            provider: "mock",
+            contextWindow: 100_000,
+            maxOutput: 1_000,
+            supportsTools: true,
+          },
+        ];
+      }
+      async *stream(_request: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent> {
+        if (signal.aborted) return;
+        this.calls += 1;
+        yield { type: "text", delta: `chunk ${this.calls}` };
+        yield { type: "stop", reason: "length" };
+      }
+    }
+    const provider = new AlwaysLengthProvider();
+    const harness = new Harness({
+      config: {
+        version: 1,
+        modules: [],
+        models: { default: "mock/reason" },
+        context: { maxOutputContinuations: 2 },
+      },
+      modules: [providerModule(provider as never, "provider-length")],
+      autoApprove: true,
+      ids: createSequentialIds("reasonlimit"),
+    });
+    const events: EventEnvelope[] = [];
+    harness.on("*", (event) => events.push(event));
+    await harness.start();
+    const session = harness.createSession("mock/reason");
+    await harness.send(session.id, "long");
+    expect(provider.calls).toBe(3);
+    const history = harness.history.read(session.id);
+    expect(history.filter((message) => message.role === "assistant")).toHaveLength(3);
+    expect(history.filter((message) => message.role === "system")).toHaveLength(2);
+    expect(history.filter((message) => message.role === "assistant").every((message) => message.truncated === true)).toBe(true);
+    const end = events.find((event) => event.type === "turn.ended" && event.sessionId === session.id);
+    expect((end?.payload as { reason: string }).reason).toBe("length");
     await harness.stop();
   });
 

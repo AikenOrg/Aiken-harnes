@@ -32,7 +32,12 @@ async function main(): Promise<void> {
   for (const entry of config.modules) {
     const use = typeof entry === "string" ? entry : entry.use;
     const definition = await loadModuleDefinition(use, dirname(absoluteConfig));
-    if (typeof entry !== "string" && entry.config !== undefined) definition.config = entry.config;
+    const explicit = typeof entry === "string" ? undefined : entry.config;
+    if (definition.manifest.roles.includes("shell") && config.shell !== undefined) {
+      definition.config = { ...config.shell, ...(explicit ?? {}) };
+    } else if (explicit !== undefined) {
+      definition.config = explicit;
+    }
     definitions.push(definition);
   }
 

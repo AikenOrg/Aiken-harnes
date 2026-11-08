@@ -14,6 +14,10 @@ bun run check
 
 # 同梱の mock プロバイダー + read ツールで対話
 printf 'hello\n' | bun run src/index.ts --config config/dev.config.json --approve-all
+
+# Anthropic
+ANTHROPIC_API_KEY=... bun run src/index.ts \
+  --config config/anthropic.config.json --approve-all
 ```
 
 `--events` を付けるとイベントを表示する。実装状況は [`docs/impl/m1.md`](docs/impl/m1.md) を参照。
@@ -32,4 +36,4 @@ printf 'hello\n' | bun run src/index.ts --config config/dev.config.json --approv
 
 ## ステータス
 
-2026-11-07: M1 のコア（EventBus / Session / History / Prompt / Tools / Jobs / ModuleHost / TurnLoop / CLI）を実装。永続化・承認 UI・非同期 shell・compaction は未実装。
+2026-11-08: M1 のコア、非同期 shell、Anthropic プロバイダーを実装。永続化・承認 UI・compaction は未実装。

@@ -1,0 +1,12 @@
+{
+  "name": "provider-anthropic",
+  "version": "0.1.0",
+  "roles": ["provider"],
+  "critical": true,
+  "runner": "inprocess",
+  "main": "index.ts",
+  "permissions": [
+    { "cap": "secrets.read", "names": ["ANTHROPIC_API_KEY"] },
+    { "cap": "net", "hosts": ["api.anthropic.com"] }
+  ]
+}

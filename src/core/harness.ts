@@ -196,6 +196,10 @@ export class Harness {
     await this.jobs.deleteSession(sessionId);
   }
 
+  failModule(name: string, error: { code: string; message: string } = { code: "module_died", message: "module died" }): void {
+    this.modules.failModule(name, error);
+  }
+
   send(sessionId: string, text: string): Promise<void> {
     if (!this.#started) return Promise.reject(new Error("harness is not started"));
     if (this.#stopping) return Promise.reject(new Error("harness is stopping"));

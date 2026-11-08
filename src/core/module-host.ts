@@ -1,5 +1,6 @@
 import type { ModuleContext, ModuleExports } from "../protocol/ctx.ts";
 import type { Capability, ModuleManifest, ModuleRole } from "../protocol/manifest.ts";
+import type { HarnessError } from "../protocol/common.ts";
 import { EXCLUSIVE_ROLES } from "../protocol/manifest.ts";
 import type { ContextFactoryOptions } from "./context.ts";
 import { createModuleContext } from "./context.ts";
@@ -24,6 +25,7 @@ export class ModuleHost {
   #definitions = new Map<string, ModuleDefinition>();
   #loaded: LoadedModule[] = [];
   #disabled = new Map<string, string>();
+  #disabledRoles = new Set<ModuleRole>();
   #roleOwners = new Map<ModuleRole, string>();
   #options: ModuleHostOptions;
 
@@ -37,6 +39,20 @@ export class ModuleHost {
 
   get disabledNames(): string[] {
     return [...this.#disabled.keys()];
+  }
+
+  /** 実行中モジュールの死亡を通知し、そのジョブを failed にする。 */
+  failModule(name: string, error: HarnessError): void {
+    const definition = this.#definitions.get(name);
+    if (!definition) return;
+    this.#options.jobs.failModule(name, error);
+    this.#options.bus.emit(
+      "module.failed",
+      { v: 1, module: name, error },
+      { source: "core" },
+    );
+    this.#disable(name, error.message);
+    if (definition.manifest.critical) throw new Error(error.message);
   }
 
   hasRole(role: ModuleRole): boolean {
@@ -231,7 +247,9 @@ export class ModuleHost {
 
   #disabledDependency(definition: ModuleDefinition): string | undefined {
     for (const requirement of definition.manifest.requires ?? []) {
-      if (this.#disabled.has(requirement)) return requirement;
+      if (this.#disabled.has(requirement) || this.#disabledRoles.has(requirement as ModuleRole)) {
+        return requirement;
+      }
       const owner = this.#roleOwners.get(requirement as ModuleRole);
       if (owner && this.#disabled.has(owner)) return owner;
     }
@@ -241,6 +259,14 @@ export class ModuleHost {
   #disable(name: string, reason: string): void {
     if (this.#disabled.has(name)) return;
     this.#disabled.set(name, reason);
+    const definition = this.#definitions.get(name);
+    if (definition) {
+      for (const tool of definition.manifest.tools ?? []) this.#options.tools.unregister(tool.name);
+      for (const role of definition.manifest.roles) {
+        this.#disabledRoles.add(role);
+        if (this.#roleOwners.get(role) === name) this.#roleOwners.delete(role);
+      }
+    }
     this.#options.bus.emit(
       "module.disabled",
       { v: 1, module: name, reason },

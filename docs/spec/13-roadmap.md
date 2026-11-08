@@ -10,15 +10,15 @@
 - `events.ts` の zod スキーマと生成文書、config スキーマ
 - 完了条件: `bun run check` が通る。docs の索引が揃っている。
 
-### M1: 最小の会話ループ (実装済み 2026-11-07)
+### M1: 最小の会話ループ (実装済み 2026-11-08)
 
 - EventBus、SessionManager、PromptAssembler、TurnLoop
 - コアの `HistoryManager` (メモリ履歴が唯一の正)
-- フェイクプロバイダー (テスト用) + 実プロバイダー 1 つ
+- フェイクプロバイダー (テスト用) + 実プロバイダー 1 つ (Anthropic)
 - 同期ツール 1 つ (`read`)
 - 最小 UI (CLI または TUI) で 1 ターンが回る
 - 完了条件: ユーザー入力 → モデル → ツール → 最終応答がイベントで追跡できる。
-- 実装: `src/core/*`、`src/modules/provider-mock`、`src/modules/tools-read`、CLI。詳細は [../impl/m1.md](../impl/m1.md)。
+- 実装: `src/core/*`、`src/modules/provider-mock`、`src/modules/tools-read`、`src/modules/shell`、`src/modules/provider-anthropic`、CLI。詳細は [../impl/m1.md](../impl/m1.md)。
 
 ### M2: 非同期ジョブ (一部実装済み)
 
@@ -28,8 +28,8 @@
 - `wait` / `cancel` / `read_result(offset, limit)` / `list_jobs`
 - 通知の一括末尾追記と `job.notified`、autoWake
 - 完了条件: 評価シナリオ E1〜E3 が通る。
-- 実装済み: JobManager、`ctx.jobs.done/fail`、タイムアウト、通知キュー、`wait` / `cancel` / `read_result` / `list_jobs`。
-- 未実装: 非同期 shell、SQLite result-store。
+- 実装済み: JobManager、`ctx.jobs.done/fail`、タイムアウト、通知キュー、`wait` / `cancel` / `read_result` / `list_jobs`、非同期 shell（whitelist/full、プロセス kill）。
+- 未実装: SQLite result-store。
 
 ### M3: 永続化と UI
 
@@ -42,7 +42,7 @@
 
 - 承認フロー、危険な組み合わせの警告、承認記録
 - compactor ロールと `compaction.decide`
-- shell のホワイトリストと `tool.before` 承認
+- shell のホワイトリストと `tool.before` 承認 (whitelist/full は実装済み。承認 UI が未実装)
 - 完了条件: `history.rewrite` が compactor 以外で拒否される。E4〜E6 が通る。
 
 ### M5: 堅牢化

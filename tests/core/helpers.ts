@@ -9,8 +9,39 @@ export type ScriptStep = {
   stop?: "end" | "tool_use" | "length" | "error";
 };
 
+export type StepSource = ScriptStep | ((request: ModelRequest) => ScriptStep);
+
+export function lastJobId(request: ModelRequest): string | undefined {
+  for (let messageIndex = request.messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+    const message = request.messages[messageIndex];
+    if (!message) continue;
+    for (let blockIndex = message.blocks.length - 1; blockIndex >= 0; blockIndex -= 1) {
+      const block = message.blocks[blockIndex];
+      if (block?.type !== "tool_result") continue;
+      try {
+        const parsed = JSON.parse(block.content) as { jobId?: unknown };
+        if (typeof parsed.jobId === "string") return parsed.jobId;
+      } catch {
+        // not JSON
+      }
+    }
+  }
+  return undefined;
+}
+
+export function lastToolResult(request: ModelRequest): string | undefined {
+  for (let messageIndex = request.messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+    const message = request.messages[messageIndex];
+    if (!message) continue;
+    for (const block of message.blocks) {
+      if (block.type === "tool_result") return block.content;
+    }
+  }
+  return undefined;
+}
+
 export class ScriptedProvider implements Provider {
-  #steps: ScriptStep[];
+  #steps: StepSource[];
   #index = 0;
   #model: string;
   #contextWindow: number;
@@ -19,7 +50,7 @@ export class ScriptedProvider implements Provider {
   requests: ModelRequest[] = [];
 
   constructor(
-    steps: ScriptStep[],
+    steps: StepSource[],
     options: { model?: string; contextWindow?: number; maxOutput?: number } = {},
   ) {
     this.#steps = steps;
@@ -43,7 +74,8 @@ export class ScriptedProvider implements Provider {
   async *stream(request: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent> {
     this.calls += 1;
     this.requests.push(request);
-    const step = this.#steps[this.#index++] ?? { text: "done", stop: "end" };
+    const source = this.#steps[this.#index++] ?? { text: "done", stop: "end" };
+    const step = typeof source === "function" ? source(request) : source;
     if (signal.aborted) return;
     if (step.text) yield { type: "text", delta: step.text };
     for (const call of step.toolCalls ?? []) {

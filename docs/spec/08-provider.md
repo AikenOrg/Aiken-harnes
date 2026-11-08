@@ -113,3 +113,29 @@ src/modules/provider-openai/
 
 - プロバイダーは `critical: true` を推奨する。落ちたら会話が成立しないため。
 - ストリーム中の接続断は `model.failed` を発行し、critical なら `core.stopping` へ進む。
+
+## 8. Anthropic 実装
+
+`src/modules/provider-anthropic` が Messages API のストリーミング実装。
+
+- `anthropic/claude-sonnet-4-5` / `anthropic/claude-haiku-4-5` を既定モデルとする。`config.models` で差し替え可能。
+- `ctx.secrets.get(apiKeySecret)` で API キーを取得する。取得は `stream()` の間だけ。
+- `ctx.net.fetch` で `api.anthropic.com` に接続する。
+- `system` の static ブロック末尾に `cache_control: { type: "ephemeral" }` を付ける。`cacheRead` は usage からコアへ返す。
+- SSE の `input_json_delta` を蓄積し、`content_block_stop` で `tool_call` として返す。
+- HTTP 400 の「prompt is too long」系は `code: "context_overflow"` に変換する。
+- `config.logRaw: true` でリクエスト/SSE イベントを `ctx.log.debug` に出す。ヘッダー (API キー) はログに含めない。
+
+```jsonc
+{
+  "modules": [
+    {
+      "use": "./modules/provider-anthropic",
+      "config": { "model": "anthropic/claude-sonnet-4-5", "logRaw": false }
+    }
+  ],
+  "secrets": {
+    "ANTHROPIC_API_KEY": { "env": "ANTHROPIC_API_KEY" }
+  }
+}
+```

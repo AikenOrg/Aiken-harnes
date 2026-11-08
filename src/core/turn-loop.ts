@@ -206,6 +206,17 @@ export class TurnLoop {
             });
           }
         } catch (error) {
+          if (controller.signal.aborted) {
+            if (responseText.length > 0) {
+              this.#history.append(session.id, {
+                role: "assistant",
+                blocks: [{ type: "text", text: responseText }],
+                interrupted: true,
+              });
+            }
+            end("cancelled");
+            return;
+          }
           const harnessError = errorOf(error);
           this.#bus.emit(
             "model.failed",

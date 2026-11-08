@@ -203,3 +203,41 @@ describe("M1 core loop", () => {
     await harness.stop();
   });
 });
+
+describe("turn cancellation", () => {
+  test("keeps partial text as interrupted and ends cancelled", async () => {
+    class HangingProvider {
+      models() {
+        return [{ id: "mock/hang", provider: "hanging", contextWindow: 100_000, maxOutput: 1_000 }];
+      }
+      async *stream(_request: unknown, signal: AbortSignal) {
+        yield { type: "text", delta: "partial" } as const;
+        await new Promise((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+        });
+      }
+    }
+    const harness = new Harness({
+      config: { version: 1, modules: [], models: { default: "mock/hang" } },
+      modules: [providerModule(new HangingProvider() as never)],
+      autoApprove: true,
+      ids: createSequentialIds("cancelmodel"),
+    });
+    const events = collect(harness);
+    await harness.start();
+    const session = harness.createSession();
+    const pending = harness.send(session.id, "long");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    harness.cancel(session.id, "user");
+    await pending;
+
+    expect(events.some((event) => event.type === "model.failed")).toBe(false);
+    expect(
+      events.some((event) => event.type === "turn.ended" && (event.payload as { reason?: string }).reason === "cancelled"),
+    ).toBe(true);
+    const assistant = harness.history.read(session.id).find((message) => message.role === "assistant");
+    expect(assistant?.interrupted).toBe(true);
+    expect(assistant?.blocks[0]).toEqual({ type: "text", text: "partial" });
+    await harness.stop();
+  });
+});

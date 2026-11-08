@@ -1,12 +1,23 @@
 {
   "version": 1,
   "modules": [
-    { "use": "../src/modules/provider-mock" },
-    { "use": "../src/modules/tools-read" }
+    {
+      "use": "../src/modules/provider-mock"
+    },
+    {
+      "use": "../src/modules/tools-read"
+    },
+    {
+      "use": "../src/modules/shell"
+    }
   ],
-  "models": { "default": "mock/echo" },
+  "models": {
+    "default": "mock/echo"
+  },
   "restore": "none",
-  "context": { "overflowRatio": 0.8 },
+  "context": {
+    "overflowRatio": 0.8
+  },
   "jobs": {
     "defaultTimeoutMs": 300000,
     "maxTimeoutMs": 900000,
@@ -16,5 +27,16 @@
     "maxSummaryChars": 200,
     "maxNotificationChars": 2000,
     "resultTtlDays": 30
+  },
+  "shell": {
+    "mode": "whitelist",
+    "allow": [
+      "echo",
+      "sleep",
+      "ls",
+      "cat",
+      "git",
+      "bun"
+    ]
   }
 }

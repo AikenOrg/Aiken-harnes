@@ -263,3 +263,15 @@ type NotificationBlock = {
 - フックは `allow` / `deny` / `args` の書き換えを返せる。
 - 拒否時は `permission.denied` ( `hook: "tool.before"` と理由) を発行し、続けて `tool.failed (code: "denied")` を発行する。モデルには拒否理由を `tool_result` として返す。返さないと AI が同じ呼び出しを繰り返す。
 - shell のホワイトリスト判定と個別承認はこのフックで行う。
+
+## 9. shell モジュール
+
+`shell` ロールを持つモジュールだけが `exec` を要求できる。実装は `src/modules/shell`。
+
+- ツールは async。`{ command, cwd? }` を受け取り、`{ jobId }` を返す。
+- `full` / `whitelist` を config で切り替える。whitelist の判定は `tool.before` フックで行う。
+- 判定はコマンド先頭の実行ファイル名を `allow` と比較する。シェル構文の完全な解析はしない (既知の受容リスク)。
+- 実行はプロセスグループで起動する。キャンセル時は `AbortSignal` でプロセスツリーを kill する。
+- 終了時は `ctx.jobs.done` に `{ exitCode, signal, stdout, stderr, truncated }` を JSON で渡す。異常終了も job は `done` とし、AI が exitCode / stderr を読めるようにする。
+- spawn 自体の失敗は `ctx.jobs.fail` (`spawn_failed`)。
+- 出力は 1 MiB で切り詰める。
